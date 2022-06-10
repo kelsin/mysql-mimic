@@ -28,11 +28,11 @@ setup(
         ],
     },
     classifiers=[
-        "Development Status :: 1 - Planning" "Intended Audience :: Developers",
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Developers",
         "Intended Audience :: Science/Research",
         "Operating System :: OS Independent",
         "Programming Language :: SQL",
         "Programming Language :: Python :: 3 :: Only",
-        "Private :: Do not Upload",
     ],
 )
