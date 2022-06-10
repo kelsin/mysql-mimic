@@ -1,15 +1,15 @@
 from setuptools import setup, find_packages
 
 # Import __version__
-exec(open("mypyprox/version.py").read())
+exec(open("mysql_mimic/version.py").read())
 
 setup(
-    name="mypyprox",
+    name="mysql-mimic",
     version=__version__,
     description="A python implementation of the mysql server protocol",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
-    url="https://github.com/kelsin/mypyprox",
+    url="https://github.com/kelsin/mysql-mimic",
     author="Christopher Giroir",
     author_email="kelsin@valefor.com",
     license="MIT",

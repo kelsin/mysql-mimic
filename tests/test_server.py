@@ -2,9 +2,9 @@ import unittest
 
 import pandas
 
-from mypyprox import types
-from mypyprox.version import __version__ as VERSION
-from mypyprox.server import MysqlStream, MysqlServer
+from mysql_mimic import types
+from mysql_mimic.version import __version__ as VERSION
+from mysql_mimic.server import MysqlStream, MysqlServer
 
 
 class TestMysqlServer(unittest.TestCase):

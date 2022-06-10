@@ -1,6 +1,6 @@
-# MyPyProx
+# MySql-Mimic
 
-[![Tests](https://github.com/kelsin/mypyprox/actions/workflows/tests.yml/badge.svg)](https://github.com/kelsin/mypyprox/actions/workflows/tests.yml)
+[![Tests](https://github.com/kelsin/mysql-mimic/actions/workflows/tests.yml/badge.svg)](https://github.com/kelsin/mysql-mimic/actions/workflows/tests.yml)
 
 Python implementation of the mysql server wire protocol in order to create a SQL
 proxy. This allows you to create a server that mysql clients can connect to in
@@ -30,14 +30,14 @@ pypi. Until then download the repo and install locally into your projects:
 
 ``` shell
 # Download
-git checkout https://github.com/kelsin/mypyprox.git
+git checkout https://github.com/kelsin/mysql-mimic.git
 
 # To use in your project:
 cd <your project>
-pip install -e <path_to_mypyprox>
+pip install -e <path_to_mysql_mimic>
 
 # Or to develop
-cd mypyprox
+cd mysql-mimic
 make deps
 ```
 
@@ -48,7 +48,7 @@ use case might look like this:
 import asyncio
 import pandas
 
-from mypyprox.server import MysqlServer
+from mysql_mimic.server import MysqlServer
 
 # Handlers take in a string query and should return a
 # pandas.DataFrame with the expected data. In order to
@@ -57,7 +57,7 @@ from mypyprox.server import MysqlServer
 def query_handler(query):
     if query.lower() == "select @@version_comment limit 1":
         return pandas.DataFrame(
-            data={"@@version_comment": ["MyPyProx Python Proxy - MIT"]}
+            data={"@@version_comment": ["MySql-Mimic Python Proxy - MIT"]}
         )
 
     return pandas.DataFrame(data={"col1": ["foo", "bar"], "col2": [1.0, 2.0]})
@@ -73,7 +73,7 @@ socket. You can pass `host` or `port` to change the defaults of `127.0.0.1` and
 `3306`. You can pass any keyword arguments you want to pass onto the `asyncio`
 server creation methods in the `MysqlServer.start` method.
 
-The `mypyprox/server.py` file is runnable with our default handler (returns
+The `mysql_mimic/server.py` file is runnable with our default handler (returns
 static data for every query) by using `make run` in the repository.
 
 ## Development

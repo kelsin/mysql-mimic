@@ -2,7 +2,7 @@ import io
 import struct
 import unittest
 
-from mypyprox import types
+from mysql_mimic import types
 
 
 class TestTypes(unittest.TestCase):

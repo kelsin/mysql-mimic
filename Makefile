@@ -12,13 +12,13 @@ format-check:
 	python -m black --check .
 
 run:
-	python -m mypyprox.server
+	python -m mysql_mimic.server
 
 lint:
-	python -m pylint mypyprox/ tests/
+	python -m pylint mysql_mimic/ tests/
 
 test:
-	coverage run --source=mypyprox -m pytest
+	coverage run --source=mysql_mimic -m pytest
 	coverage report
 	coverage html
 

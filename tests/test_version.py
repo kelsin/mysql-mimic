@@ -2,7 +2,7 @@ import io
 import contextlib
 import unittest
 
-from mypyprox import version
+from mysql_mimic import version
 
 
 class TestTypes(unittest.TestCase):

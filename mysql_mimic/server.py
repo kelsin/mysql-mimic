@@ -4,9 +4,9 @@ import struct
 
 import pandas
 
-from mypyprox import types
-from mypyprox.version import __version__ as VERSION
-from mypyprox.constants import DEFAULT_SERVER_CAPABILITIES
+from mysql_mimic import types
+from mysql_mimic.version import __version__ as VERSION
+from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 
 
 class seq:
@@ -69,7 +69,7 @@ class MysqlStream:
 def default_query_handler(query):
     if query.lower() == "select @@version_comment limit 1":
         return pandas.DataFrame(
-            data={"@@version_comment": ["MyPyProx Python Proxy - MIT"]}
+            data={"@@version_comment": ["MySql-Mimic Python Proxy - MIT"]}
         )
 
     return pandas.DataFrame(data={"col1": ["foo", "bar"], "col2": [1.0, 2.0]})
