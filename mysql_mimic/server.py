@@ -136,7 +136,7 @@ class MysqlServer:
 
         return data
 
-    # pylint: disable=too-many-arguments,no-self-use
+    # pylint: disable=too-many-arguments
     def column_definition_41(
         self,
         schema=None,
