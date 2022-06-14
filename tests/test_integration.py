@@ -34,6 +34,7 @@ class TestIntegration(unittest.IsolatedAsyncioTestCase):
             ),
             port=port,
         )
+        await self.server.start_server()
         asyncio.create_task(self.server.serve_forever())
         self.pool = await aiomysql.create_pool(
             port=port, user="levon_helm", db="db", program_name="test"

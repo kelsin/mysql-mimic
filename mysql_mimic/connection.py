@@ -62,7 +62,7 @@ class Connection:
             session_factory (()->Session): Callable that takes no arguments and returns a session
             server_capabilities (int): server capability flags
         """
-        self.s = stream
+        self.stream = stream
         self.session_factory = session_factory
         self.connection_id = connection_id
 
@@ -250,14 +250,14 @@ class Connection:
             await session.close()
 
     async def _connection_phase(self):
-        self.s.write(self.handshake_v10())
-        self.handshake_response_41(await self.s.read())
-        self.s.write(self.ok())
-        self.s.reset_seq()
+        self.stream.write(self.handshake_v10())
+        self.handshake_response_41(await self.stream.read())
+        self.stream.write(self.ok())
+        self.stream.reset_seq()
 
     async def _command_phase(self, session):
         while True:
-            data = await self.s.read()
+            data = await self.stream.read()
             command = data[0]
             rest = data[1:]
 
@@ -269,8 +269,8 @@ class Connection:
                 types.Commands.COM_RESET_CONNECTION,
                 types.Commands.COM_DEBUG,
             ):
-                self.s.write(self.ok())
-                self.s.reset_seq()
+                self.stream.write(self.ok())
+                self.stream.reset_seq()
                 continue
 
             if command == types.Commands.COM_QUERY:
@@ -279,25 +279,27 @@ class Connection:
                     result = await session.query(rest.decode("utf-8"))
 
                     if result is None:
-                        self.s.write(self.ok())
-                        self.s.reset_seq()
+                        self.stream.write(self.ok())
+                        self.stream.reset_seq()
                         continue
 
                     if isinstance(result, pd.DataFrame):
                         for packet in self.text_resultset(result):
-                            self.s.write(packet)
-                        self.s.reset_seq()
+                            self.stream.write(packet)
+                        self.stream.reset_seq()
                         continue
 
-                    self.s.write(self.ok())
-                    self.s.reset_seq()
+                    self.stream.write(self.ok())
+                    self.stream.reset_seq()
                     continue
 
                 except Exception as e:
                     logger.exception(e)
-                    self.s.write(self.error(e))
-                    self.s.reset_seq()
+                    self.stream.write(self.error(e))
+                    self.stream.reset_seq()
                     continue
 
-            self.s.write(self.error("Unknown Command", code=1047, sql_state=b"08S01"))
-            self.s.reset_seq()
+            self.stream.write(
+                self.error("Unknown Command", code=1047, sql_state=b"08S01")
+            )
+            self.stream.reset_seq()
