@@ -18,6 +18,7 @@ setup(
     install_requires=["pandas"],
     extras_require={
         "dev": [
+            "aiomysql",
             "black",
             "coverage",
             "pylint",
