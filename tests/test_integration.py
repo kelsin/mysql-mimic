@@ -1,14 +1,15 @@
 import asyncio
 import unittest
 import socket
+from datetime import date, datetime, timedelta
 from unittest.mock import Mock
 
 import aiomysql
-import pandas as pd
 
 from mysql_mimic import MysqlServer, Session
 from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
-from mysql_mimic.types import Capabilities
+from mysql_mimic.result import ResultColumn, ResultSet
+from mysql_mimic.types import Capabilities, CharacterSet, ColumnType
 
 
 def get_free_port():
@@ -48,22 +49,60 @@ class TestIntegration(unittest.IsolatedAsyncioTestCase):
 
     async def query(self, sql):
         async with self.pool.acquire() as conn:
-            async with conn.cursor() as cur:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(sql)
                 return await cur.fetchall()
 
     async def test_query(self):
-        self.session.query.return_value = pd.DataFrame({"a": ["x"]})
-        result = await self.query("SELECT * FROM a")
-        self.assertEqual(result, (("x",),))
-
-        connection = self.session.init.mock_calls[0].args[0]
-        self.assertEqual(connection.client_connect_attrs["program_name"], "test")
-        self.assertEqual(connection.database, "db")
-
-        self.session.query.return_value = pd.DataFrame()
-        result = await self.query("SELECT * FROM a")
-        self.assertEqual(result, ())
+        for rv, expected in [
+            (([], []), ()),  # Not sure why the aiomysql result is a tuple
+            (None, []),
+            (((("x",),), ("b",)), [{"b": "x"}]),
+            (([["1"]], ["b"]), [{"b": "1"}]),
+            (([(1,)], ("b",)), [{"b": 1}]),
+            (([(1.0,)], ("b",)), [{"b": 1.0}]),
+            (([(b"x",)], ("b",)), [{"b": "x"}]),
+            (([(True,)], ("b",)), [{"b": True}]),
+            (([(date(2021, 1, 1),)], ("b",)), [{"b": date(2021, 1, 1)}]),
+            (
+                ([(datetime(2021, 1, 1, 1, 1, 1),)], ("b",)),
+                [{"b": datetime(2021, 1, 1, 1, 1, 1)}],
+            ),
+            (([(timedelta(seconds=60),)], ("b",)), [{"b": timedelta(seconds=60)}]),
+            (
+                ResultSet(
+                    rows=[("♥".encode("utf-8"),)],
+                    columns=[
+                        ResultColumn(
+                            name="b",
+                            character_set=CharacterSet.UTF8,
+                            type=ColumnType.VARCHAR,
+                            encoder=lambda x: x,
+                        )
+                    ],
+                ),
+                [{"b": "♥"}],
+            ),
+            (
+                (
+                    [("♥".encode("utf-8"),)],
+                    [
+                        ResultColumn(
+                            name="b",
+                            character_set=CharacterSet.UTF8,
+                            type=ColumnType.VARCHAR,
+                            encoder=lambda x: x,
+                        )
+                    ],
+                ),
+                [{"b": "♥"}],
+            ),
+            (([(None,)], ["b"]), [{"b": None}]),
+            (([[None], [1]], ["b"]), [{"b": None}, {"b": 1}]),
+        ]:
+            self.session.query.return_value = rv
+            result = await self.query("SELECT b FROM a")
+            self.assertEqual(result, expected)
 
     async def test_init(self):
         connection = self.session.init.mock_calls[0].args[0]

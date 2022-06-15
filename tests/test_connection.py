@@ -1,8 +1,6 @@
 import unittest
 from unittest.mock import Mock
 
-import pandas
-
 from mysql_mimic import types
 from mysql_mimic.connection import Connection
 
@@ -47,22 +45,5 @@ class TestMysqlServer(unittest.TestCase):
     def test_column_definition_41(self):
         self.assertEqual(
             self.conn.column_definition_41(),
-            b"\x03def\x00\x00\x00\x00\x00\x0c!\x00\x00\x01\x00\x00\x10\x00\x00\x00\x00\x00",
-        )
-
-    def test_empty_text_resultset(self):
-        self.assertEqual(
-            self.conn.text_resultset(pandas.DataFrame()), [b"\x00", b"\xfe", b"\xfe"]
-        )
-
-    def test_simple_text_resultset(self):
-        self.assertEqual(
-            self.conn.text_resultset(pandas.DataFrame(data={"col": ["kelsin"]})),
-            [
-                b"\x01",
-                b"\x03def\x00\x00\x00\x03col\x03col\x0c!\x00\x00\x01\x00\x00\x10\x00\x00\x00\x00\x00",
-                b"\xfe",
-                b"\x06kelsin",
-                b"\xfe",
-            ],
+            b"\x03def\x00\x00\x00\x00\x00\x0c!\x00\x00\x01\x00\x00\x0f\x00\x00\x00\x00\x00",
         )

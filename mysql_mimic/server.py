@@ -2,7 +2,8 @@ import asyncio
 import random
 import itertools
 
-from mysql_mimic.connection import Connection, Session
+from mysql_mimic.connection import Connection
+from mysql_mimic.session import Session
 from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 from mysql_mimic.stream import MysqlStream
 
