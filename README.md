@@ -21,20 +21,21 @@ use case might look like this:
 
 ```python
 import asyncio
-import pandas as pd
 
-from mysql_mimic.server import MysqlServer, Session
+from mysql_mimic import MysqlServer, Session
+
 
 class MySession(Session):
     async def init(self, connection):
         print(f"new session: {connection}")
-        
+  
     async def query(self, sql):
         print(f"received query: {sql}")
-        return pd.DataFrame(data={"col1": ["foo", "bar"]})
-    
+        return [("a", 1), ("b", 2)], ["col1", "col2"]
+  
     async def close(self):
         print("session closed")
+
 
 if __name__ == "__main__":
     server = MysqlServer(session_factory=MySession)
@@ -45,8 +46,6 @@ See [examples](./examples) for more examples.
 
 ## Todo
 
-- Proper types support. Right now all data is returned as a string type, we need
-  to properly inspect the DataFrame and return proper column information.
 - Add support for (at least) the `mysql_native_password` authentication method
   with another callback.
 - *Eventually* Compression support

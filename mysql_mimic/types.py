@@ -1,45 +1,44 @@
 """Basic data types of the mysql protocol"""
-
 import struct
 
 from enum import IntEnum, IntFlag, auto
 
 
-class FieldTypes(IntEnum):
-    MYSQL_TYPE_DECIMAL = auto()
-    MYSQL_TYPE_TINY = auto()
-    MYSQL_TYPE_SHORT = auto()
-    MYSQL_TYPE_LONG = auto()
-    MYSQL_TYPE_FLOAT = auto()
-    MYSQL_TYPE_DOUBLE = auto()
-    MYSQL_TYPE_NULL = auto()
-    MYSQL_TYPE_TIMESTAMP = auto()
-    MYSQL_TYPE_LONGLONG = auto()
-    MYSQL_TYPE_INT24 = auto()
-    MYSQL_TYPE_DATE = auto()
-    MYSQL_TYPE_TIME = auto()
-    MYSQL_TYPE_DATETIME = auto()
-    MYSQL_TYPE_YEAR = auto()
-    MYSQL_TYPE_NEWDATE = auto()
-    MYSQL_TYPE_VARCHAR = auto()
-    MYSQL_TYPE_BIT = auto()
-    MYSQL_TYPE_TIMESTAMP2 = auto()
-    MYSQL_TYPE_DATETIME2 = auto()
-    MYSQL_TYPE_TIME2 = auto()
-    MYSQL_TYPE_TYPED_ARRAY = auto()
-    MYSQL_TYPE_INVALID = 243
-    MYSQL_TYPE_BOOL = 244
-    MYSQL_TYPE_JSON = 245
-    MYSQL_TYPE_NEWDECIMAL = 246
-    MYSQL_TYPE_ENUM = 247
-    MYSQL_TYPE_SET = 248
-    MYSQL_TYPE_TINY_BLOB = 249
-    MYSQL_TYPE_MEDIUM_BLOB = 250
-    MYSQL_TYPE_LONG_BLOB = 251
-    MYSQL_TYPE_BLOB = 252
-    MYSQL_TYPE_VAR_STRING = 253
-    MYSQL_TYPE_STRING = 254
-    MYSQL_TYPE_GEOMETRY = 255
+class ColumnType(IntEnum):
+    DECIMAL = 0
+    TINY = 1
+    SHORT = 2
+    LONG = 3
+    FLOAT = 4
+    DOUBLE = 5
+    NULL = 6
+    TIMESTAMP = 7
+    LONGLONG = 8
+    INT24 = 9
+    DATE = 10
+    TIME = 11
+    DATETIME = 12
+    YEAR = 13
+    NEWDATE = 14
+    VARCHAR = 15
+    BIT = 16
+    TIMESTAMP2 = 17
+    DATETIME2 = 18
+    TIME2 = 19
+    TYPED_ARRAY = 20
+    INVALID = 243
+    BOOL = 244
+    JSON = 245
+    NEWDECIMAL = 246
+    ENUM = 247
+    SET = 248
+    TINY_BLOB = 249
+    MEDIUM_BLOB = 250
+    LONG_BLOB = 251
+    BLOB = 252
+    VAR_STRING = 253
+    STRING = 254
+    GEOMETRY = 255
 
 
 class Commands(IntEnum):
@@ -148,6 +147,54 @@ class ServerStatus(IntFlag):
 class ResultsetMetadata(IntEnum):
     RESULTSET_METADATA_NONE = 0
     RESULTSET_METADATA_FULL = 1
+
+
+class CharacterSet(IntEnum):
+    BIG5 = 1
+    DEC8 = 3
+    CP850 = 4
+    HP8 = 6
+    KOI8R = 7
+    LATIN1 = 8
+    LATIN2 = 9
+    SWE7 = 10
+    ASCII = 11
+    UJIS = 12
+    SJIS = 13
+    HEBREW = 16
+    TIS620 = 18
+    EUCKR = 19
+    KOI8U = 22
+    GB2312 = 24
+    GREEK = 25
+    CP1250 = 26
+    GBK = 28
+    LATIN5 = 30
+    ARMSCII8 = 32
+    UTF8 = 33
+    UCS2 = 35
+    CP866 = 36
+    KEYBCS2 = 37
+    MACCE = 38
+    MACROMAN = 39
+    CP852 = 40
+    LATIN7 = 41
+    CP1251 = 51
+    UTF16 = 54
+    UTF16LE = 56
+    CP1256 = 57
+    CP1257 = 59
+    UTF32 = 60
+    BINARY = 63
+    GEOSTD8 = 92
+    CP932 = 95
+    EUCJPMS = 97
+    GB18030 = 248
+    UTF8MB4 = 255
+
+    @property
+    def codec(self):
+        return self.name.lower()
 
 
 def int_len(i):

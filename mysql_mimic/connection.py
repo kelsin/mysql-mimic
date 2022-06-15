@@ -1,48 +1,15 @@
 import io
 import logging
 
-import pandas as pd
-
 from mysql_mimic import types
+from mysql_mimic.session import Session
 from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
+from mysql_mimic.result import ensure_result_set
+from mysql_mimic.types import CharacterSet
 from mysql_mimic.version import __version__ as VERSION
 
 
 logger = logging.getLogger(__name__)
-
-
-class Session:
-    """
-    Abstract client session.
-
-    This should be implemented by applications.
-    """
-
-    async def query(self, sql):  # pylint: disable=unused-argument
-        """
-        Process a SQL query.
-
-        Args:
-            sql (str): SQL statement from client
-        Returns:
-            pd.DataFrame: Result table
-        """
-        return pd.DataFrame({})
-
-    async def close(self):
-        """
-        Close the session.
-
-        This is called when the client closes the connection
-        """
-
-    async def init(self, connection):
-        """
-        Initialize the session.
-
-        Args:
-            connection (Connection): connection of the session
-        """
 
 
 class Connection:
@@ -127,9 +94,9 @@ class Connection:
         org_table=None,
         name=None,
         org_name=None,
-        character_set=33,
+        character_set=CharacterSet.UTF8,
         column_length=256,
-        column_type=types.FieldTypes.MYSQL_TYPE_VARCHAR,
+        column_type=types.ColumnType.VARCHAR,
         flags=types.ColumnDefinition(0),
         decimals=0,
     ):
@@ -208,31 +175,38 @@ class Connection:
             + types.str_fixed(13, bytes(13))  # rest of plugin data
         )
 
-    def text_resultset(self, df):
+    def text_resultset(self, result_set):
         data = [b""]
 
         if types.Capabilities.CLIENT_OPTIONAL_RESULTSET_METADATA in self.capabilities:
             data[0] += types.int_1(types.ResultsetMetadata.RESULTSET_METADATA_FULL)
 
-        data[0] += types.int_len(len(df.columns))
+        data[0] += types.int_len(len(result_set.columns))
 
-        for column in df.columns:
-            data.append(self.column_definition_41(name=column))
+        for column in result_set.columns:
+            data.append(
+                self.column_definition_41(
+                    name=column.name,
+                    column_type=column.type,
+                    character_set=column.character_set,
+                )
+            )
 
         if not types.Capabilities.CLIENT_DEPRECATE_EOF in self.capabilities:
             data.append(self.eof())
 
-        for _, row in df.iterrows():
-            row_data = b""
-            for value in row:
-                if not value:
-                    row_data += b"0xFB"
+        for row in result_set.rows:
+            row_data = []
+
+            for value, column in zip(row, result_set.columns):
+                if value is None:
+                    row_data.append(b"\xfb")
                 else:
-                    row_data += types.str_len(str(value).encode("utf-8"))
-            data.append(row_data)
+                    row_data.append(types.str_len(column.encoder(value)))
+            data.append(b"".join(row_data))
 
         if types.Capabilities.CLIENT_DEPRECATE_EOF in self.capabilities:
-            data.append(self.ok(eof=True, affected_rows=len(df)))
+            data.append(self.ok(eof=True, affected_rows=len(result_set.rows)))
         else:
             data.append(self.eof())
 
@@ -276,20 +250,17 @@ class Connection:
             if command == types.Commands.COM_QUERY:
                 # pylint: disable=broad-except
                 try:
-                    result = await session.query(rest.decode("utf-8"))
+                    result_set = await session.query(rest.decode("utf-8"))
 
-                    if result is None:
+                    if result_set is None:
                         self.stream.write(self.ok())
                         self.stream.reset_seq()
                         continue
 
-                    if isinstance(result, pd.DataFrame):
-                        for packet in self.text_resultset(result):
-                            self.stream.write(packet)
-                        self.stream.reset_seq()
-                        continue
+                    result_set = ensure_result_set(result_set)
 
-                    self.stream.write(self.ok())
+                    for packet in self.text_resultset(result_set):
+                        self.stream.write(packet)
                     self.stream.reset_seq()
                     continue
 

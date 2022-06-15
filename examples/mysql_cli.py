@@ -1,19 +1,16 @@
 import logging
 import asyncio
-import pandas as pd
 
-from mysql_mimic.server import MysqlServer, Session
+from mysql_mimic import MysqlServer, Session
 
 
 class MySqlCliCompatibleSession(Session):
     async def query(self, sql):
         # The MySQL CLI asks for this
         if sql.lower() == "select @@version_comment limit 1":
-            return pd.DataFrame(
-                data={"@@version_comment": ["MySql-Mimic Python Proxy - MIT"]}
-            )
+            return [["MySql-Mimic Python Proxy - MIT"]], ["@@version_comment"]
 
-        return pd.DataFrame(data={"col1": ["foo", "bar"], "col2": [1.0, 2.0]})
+        return [("foo", 1.0), ("bar", 2.0)], ["col1", "col2"]
 
 
 async def main():
