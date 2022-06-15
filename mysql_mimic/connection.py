@@ -1,7 +1,8 @@
 import io
 import logging
 
-from mysql_mimic import types, Session
+from mysql_mimic import types
+from mysql_mimic.session import Session
 from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 from mysql_mimic.result import ensure_result_set
 from mysql_mimic.types import CharacterSet
