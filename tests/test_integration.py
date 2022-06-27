@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import io
 import unittest
 import socket
@@ -42,6 +43,12 @@ class MockSession(Session):
         return self.return_value
 
 
+async def to_thread(func, *args, **kwargs):
+    loop = asyncio.get_running_loop()
+    func_call = functools.partial(func, *args, **kwargs)
+    return await loop.run_in_executor(None, func_call)
+
+
 def get_free_port():
     sock = socket.socket()
     sock.bind(("", 0))
@@ -69,7 +76,7 @@ class TestIntegration(unittest.IsolatedAsyncioTestCase):
 
         await self.server.start_server()
         asyncio.create_task(self.server.serve_forever())
-        self.mysql_conn = await asyncio.to_thread(
+        self.mysql_conn = await to_thread(
             mysql.connector.connect, use_pure=True, port=self.port
         )
         self.aiomysql_conn = await aiomysql.connect(port=self.port)
@@ -81,12 +88,10 @@ class TestIntegration(unittest.IsolatedAsyncioTestCase):
         await self.server.wait_closed()
 
     async def mysql_query(self, sql, cursor_class=MySQLCursorDict, params=None):
-        cursor = await asyncio.to_thread(
-            self.mysql_conn.cursor, cursor_class=cursor_class
-        )
-        await asyncio.to_thread(cursor.execute, sql, *(p for p in [params] if p))
-        result = await asyncio.to_thread(cursor.fetchall)
-        await asyncio.to_thread(cursor.close)
+        cursor = await to_thread(self.mysql_conn.cursor, cursor_class=cursor_class)
+        await to_thread(cursor.execute, sql, *(p for p in [params] if p))
+        result = await to_thread(cursor.fetchall)
+        await to_thread(cursor.close)
         return result
 
     async def aiomysql_query(self, sql, cursor_class=aiomysql.DictCursor, params=None):
