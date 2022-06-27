@@ -1,7 +1,8 @@
-import itertools
 import struct
 
-from mysql_mimic.types import int_3, int_1
+from mysql_mimic.errors import MysqlError, ErrorCode
+from mysql_mimic.types import uint_3, uint_1
+from mysql_mimic.utils import seq
 
 
 class ConnectionClosed(Exception):
@@ -12,51 +13,50 @@ class MysqlStream:
     def __init__(self, reader, writer):
         self.reader = reader
         self.writer = writer
-        self._seq = None
-        self.reset_seq()
-
-    def seq(self):
-        return next(self._seq)
+        self.seq = seq(256)
 
     async def read(self):
         data = b""
         while True:
-            seq_num = await self.reader.read(4)
+            header = await self.reader.read(4)
 
-            if not seq_num:
+            if not header:
                 raise ConnectionClosed()
 
-            i = struct.unpack("<I", seq_num)[0]
-            l = i & 0x00FFFFFF
-            s = (i & 0xFF000000) >> 24
+            i = struct.unpack("<I", header)[0]
+            payload_length = i & 0x00FFFFFF
+            sequence_id = (i & 0xFF000000) >> 24
 
-            expected = self.seq()
-            if s != expected:
-                raise ValueError(f"Expected seq({expected}) got seq({s})")
+            expected = next(self.seq)
+            if sequence_id != expected:
+                raise MysqlError(
+                    f"Expected seq({expected}) got seq({sequence_id})",
+                    ErrorCode.MALFORMED_PACKET,
+                )
 
-            if l == 0:
+            if payload_length == 0:
                 return data
 
-            data += await self.reader.read(l)
+            data += await self.reader.read(payload_length)
 
-            if l < 0xFFFFFF:
+            if payload_length < 0xFFFFFF:
                 return data
 
-    def write(self, data):
+    async def write(self, data):
         while True:
             # Grab first 0xFFFFFF bytes to send
             payload = data[:0xFFFFFF]
             data = data[0xFFFFFF:]
 
-            payload_length = int_3(len(payload))
-            sequence_id = int_1(self.seq())
+            payload_length = uint_3(len(payload))
+            sequence_id = uint_1(next(self.seq))
 
             self.writer.write(payload_length + sequence_id + payload)
+            await self.writer.drain()
 
             # We are done unless len(send) == 0xFFFFFF
             if len(payload) != 0xFFFFFF:
                 return
 
     def reset_seq(self):
-        # Sequence number is one byte and wraps around
-        self._seq = itertools.cycle(range(0xFF + 1))
+        self.seq.reset()

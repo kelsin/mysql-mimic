@@ -1,6 +1,7 @@
 import unittest
 
-from mysql_mimic.result import ensure_result_set
+from mysql_mimic.errors import MysqlError
+from mysql_mimic.results import ensure_result_set
 
 
 class TestResult(unittest.TestCase):
@@ -10,5 +11,5 @@ class TestResult(unittest.TestCase):
             ([[1, 2]], ["a", "b"], ["a", "b"]),
             ([[1, 2]], [1, 2]),
         ]:
-            with self.assertRaises(ValueError):
+            with self.assertRaises(MysqlError):
                 ensure_result_set(result)

@@ -1,11 +1,11 @@
 import asyncio
 import random
-import itertools
 
 from mysql_mimic.connection import Connection
 from mysql_mimic.session import Session
 from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 from mysql_mimic.stream import MysqlStream
+from mysql_mimic.utils import seq
 
 
 class MaxConnectionsExceeded(Exception):
@@ -22,6 +22,7 @@ class MysqlServer:
         server_id (int): set a unique server ID. This is used to generate globally unique
             connection IDs. This should be an integer between 0 and 65535.
             If left as None, a random server ID will be generated.
+        conn_kwargs (dict): extra keyword args passed to new `Connection` instances
         **kwargs: extra keyword args passed to the asyncio start server command
     """
 
@@ -34,23 +35,26 @@ class MysqlServer:
         session_factory=Session,
         capabilities=DEFAULT_SERVER_CAPABILITIES,
         server_id=None,
-        **kwargs,
+        conn_kwargs=None,
+        **serve_kwargs,
     ):
         self.session_factory = session_factory
         self.capabilities = capabilities
         self.server_id = server_id or self._get_server_id()
-        self._connection_seq = itertools.count()
+        self.conn_kwargs = conn_kwargs
+        self._connection_seq = seq(self._MAX_CONNECTION_SEQ)
         self._connections = {}
-        self._serve_kwargs = kwargs
+        self._serve_kwargs = serve_kwargs
         self._server = None
 
     async def _client_connected_cb(self, reader, writer):
         connection_id = self._get_connection_id()
         connection = Connection(
             stream=MysqlStream(reader, writer),
-            session_factory=self.session_factory,
+            session=self.session_factory(),
             server_capabilities=self.capabilities,
             connection_id=connection_id,
+            **(self.conn_kwargs or {}),
         )
         self._connections[connection_id] = connection
         try:
@@ -84,20 +88,14 @@ class MysqlServer:
             self.server_id % self._MAX_SERVER_ID
         ) << self._CONNECTION_ID_BITS
 
-        connection_id = server_id_prefix + self._next_connection_sequence()
+        connection_id = server_id_prefix + next(self._connection_seq)
 
         # Avoid connection ID collisions in the unlikely chance that a connection is
         # alive longer than it takes for the sequence to reset.
         while connection_id in self._connections:
-            connection_id = server_id_prefix + self._next_connection_sequence()
+            connection_id = server_id_prefix + next(self._connection_seq)
 
         return connection_id
-
-    def _next_connection_sequence(self):
-        conn_seq = next(self._connection_seq)
-        if conn_seq >= self._MAX_CONNECTION_SEQ:
-            self._connection_seq = itertools.count()
-        return conn_seq
 
     async def start_server(self, **kwargs):
         """

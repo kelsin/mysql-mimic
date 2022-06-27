@@ -37,75 +37,75 @@ class TestTypes(unittest.TestCase):
         )
 
     def test_int_1(self):
-        self.assertEqual(types.int_1(0), b"\x00")
-        self.assertEqual(types.int_1(1), b"\x01")
-        self.assertEqual(types.int_1(255), b"\xff")
-        self.assertRaises(struct.error, types.int_1, 256)
+        self.assertEqual(types.uint_1(0), b"\x00")
+        self.assertEqual(types.uint_1(1), b"\x01")
+        self.assertEqual(types.uint_1(255), b"\xff")
+        self.assertRaises(struct.error, types.uint_1, 256)
 
     def test_int_2(self):
-        self.assertEqual(types.int_2(0), b"\x00\x00")
-        self.assertEqual(types.int_2(1), b"\x01\x00")
-        self.assertEqual(types.int_2(255), b"\xff\x00")
-        self.assertEqual(types.int_2(2**8), b"\x00\x01")
-        self.assertEqual(types.int_2(2**16 - 1), b"\xff\xff")
-        self.assertRaises(struct.error, types.int_2, 2**16)
+        self.assertEqual(types.uint_2(0), b"\x00\x00")
+        self.assertEqual(types.uint_2(1), b"\x01\x00")
+        self.assertEqual(types.uint_2(255), b"\xff\x00")
+        self.assertEqual(types.uint_2(2**8), b"\x00\x01")
+        self.assertEqual(types.uint_2(2**16 - 1), b"\xff\xff")
+        self.assertRaises(struct.error, types.uint_2, 2**16)
 
     def test_int_3(self):
-        self.assertEqual(types.int_3(0), b"\x00\x00\x00")
-        self.assertEqual(types.int_3(1), b"\x01\x00\x00")
-        self.assertEqual(types.int_3(255), b"\xff\x00\x00")
-        self.assertEqual(types.int_3(2**8), b"\x00\x01\x00")
-        self.assertEqual(types.int_3(2**16), b"\x00\x00\x01")
-        self.assertRaises(struct.error, types.int_3, 2**24)
+        self.assertEqual(types.uint_3(0), b"\x00\x00\x00")
+        self.assertEqual(types.uint_3(1), b"\x01\x00\x00")
+        self.assertEqual(types.uint_3(255), b"\xff\x00\x00")
+        self.assertEqual(types.uint_3(2**8), b"\x00\x01\x00")
+        self.assertEqual(types.uint_3(2**16), b"\x00\x00\x01")
+        self.assertRaises(struct.error, types.uint_3, 2**24)
 
     def test_int_4(self):
-        self.assertEqual(types.int_4(0), b"\x00\x00\x00\x00")
-        self.assertEqual(types.int_4(1), b"\x01\x00\x00\x00")
-        self.assertEqual(types.int_4(255), b"\xff\x00\x00\x00")
-        self.assertEqual(types.int_4(2**8), b"\x00\x01\x00\x00")
-        self.assertEqual(types.int_4(2**16), b"\x00\x00\x01\x00")
-        self.assertEqual(types.int_4(2**24), b"\x00\x00\x00\x01")
-        self.assertRaises(struct.error, types.int_4, 2**32)
+        self.assertEqual(types.uint_4(0), b"\x00\x00\x00\x00")
+        self.assertEqual(types.uint_4(1), b"\x01\x00\x00\x00")
+        self.assertEqual(types.uint_4(255), b"\xff\x00\x00\x00")
+        self.assertEqual(types.uint_4(2**8), b"\x00\x01\x00\x00")
+        self.assertEqual(types.uint_4(2**16), b"\x00\x00\x01\x00")
+        self.assertEqual(types.uint_4(2**24), b"\x00\x00\x00\x01")
+        self.assertRaises(struct.error, types.uint_4, 2**32)
 
     def test_int_6(self):
-        self.assertEqual(types.int_6(0), b"\x00\x00\x00\x00\x00\x00")
-        self.assertEqual(types.int_6(1), b"\x01\x00\x00\x00\x00\x00")
-        self.assertEqual(types.int_6(255), b"\xff\x00\x00\x00\x00\x00")
-        self.assertEqual(types.int_6(2**8), b"\x00\x01\x00\x00\x00\x00")
-        self.assertEqual(types.int_6(2**16), b"\x00\x00\x01\x00\x00\x00")
-        self.assertEqual(types.int_6(2**24), b"\x00\x00\x00\x01\x00\x00")
-        self.assertEqual(types.int_6(2**32), b"\x00\x00\x00\x00\x01\x00")
-        self.assertEqual(types.int_6(2**40), b"\x00\x00\x00\x00\x00\x01")
-        self.assertRaises(struct.error, types.int_6, 2**48)
+        self.assertEqual(types.uint_6(0), b"\x00\x00\x00\x00\x00\x00")
+        self.assertEqual(types.uint_6(1), b"\x01\x00\x00\x00\x00\x00")
+        self.assertEqual(types.uint_6(255), b"\xff\x00\x00\x00\x00\x00")
+        self.assertEqual(types.uint_6(2**8), b"\x00\x01\x00\x00\x00\x00")
+        self.assertEqual(types.uint_6(2**16), b"\x00\x00\x01\x00\x00\x00")
+        self.assertEqual(types.uint_6(2**24), b"\x00\x00\x00\x01\x00\x00")
+        self.assertEqual(types.uint_6(2**32), b"\x00\x00\x00\x00\x01\x00")
+        self.assertEqual(types.uint_6(2**40), b"\x00\x00\x00\x00\x00\x01")
+        self.assertRaises(struct.error, types.uint_6, 2**48)
 
     def test_int_8(self):
-        self.assertEqual(types.int_8(0), b"\x00\x00\x00\x00\x00\x00\x00\x00")
-        self.assertEqual(types.int_8(1), b"\x01\x00\x00\x00\x00\x00\x00\x00")
-        self.assertEqual(types.int_8(255), b"\xff\x00\x00\x00\x00\x00\x00\x00")
-        self.assertEqual(types.int_8(2**8), b"\x00\x01\x00\x00\x00\x00\x00\x00")
-        self.assertEqual(types.int_8(2**16), b"\x00\x00\x01\x00\x00\x00\x00\x00")
-        self.assertEqual(types.int_8(2**24), b"\x00\x00\x00\x01\x00\x00\x00\x00")
-        self.assertEqual(types.int_8(2**32), b"\x00\x00\x00\x00\x01\x00\x00\x00")
-        self.assertEqual(types.int_8(2**56), b"\x00\x00\x00\x00\x00\x00\x00\x01")
-        self.assertRaises(struct.error, types.int_8, 2**64)
+        self.assertEqual(types.uint_8(0), b"\x00\x00\x00\x00\x00\x00\x00\x00")
+        self.assertEqual(types.uint_8(1), b"\x01\x00\x00\x00\x00\x00\x00\x00")
+        self.assertEqual(types.uint_8(255), b"\xff\x00\x00\x00\x00\x00\x00\x00")
+        self.assertEqual(types.uint_8(2**8), b"\x00\x01\x00\x00\x00\x00\x00\x00")
+        self.assertEqual(types.uint_8(2**16), b"\x00\x00\x01\x00\x00\x00\x00\x00")
+        self.assertEqual(types.uint_8(2**24), b"\x00\x00\x00\x01\x00\x00\x00\x00")
+        self.assertEqual(types.uint_8(2**32), b"\x00\x00\x00\x00\x01\x00\x00\x00")
+        self.assertEqual(types.uint_8(2**56), b"\x00\x00\x00\x00\x00\x00\x00\x01")
+        self.assertRaises(struct.error, types.uint_8, 2**64)
 
     def test_int_len(self):
-        self.assertEqual(types.int_len(0), b"\x00")
-        self.assertEqual(types.int_len(1), b"\x01")
-        self.assertEqual(types.int_len(250), b"\xfa")
-        self.assertEqual(types.int_len(251), b"\xfc\xfb\x00")
-        self.assertEqual(types.int_len(2**8), b"\xfc\x00\x01")
-        self.assertEqual(types.int_len(2**16), b"\xfd\x00\x00\x01")
+        self.assertEqual(types.uint_len(0), b"\x00")
+        self.assertEqual(types.uint_len(1), b"\x01")
+        self.assertEqual(types.uint_len(250), b"\xfa")
+        self.assertEqual(types.uint_len(251), b"\xfc\xfb\x00")
+        self.assertEqual(types.uint_len(2**8), b"\xfc\x00\x01")
+        self.assertEqual(types.uint_len(2**16), b"\xfd\x00\x00\x01")
         self.assertEqual(
-            types.int_len(2**24), b"\xfe\x00\x00\x00\x01\x00\x00\x00\x00"
+            types.uint_len(2**24), b"\xfe\x00\x00\x00\x01\x00\x00\x00\x00"
         )
         self.assertEqual(
-            types.int_len(2**32), b"\xfe\x00\x00\x00\x00\x01\x00\x00\x00"
+            types.uint_len(2**32), b"\xfe\x00\x00\x00\x00\x01\x00\x00\x00"
         )
         self.assertEqual(
-            types.int_len(2**56), b"\xfe\x00\x00\x00\x00\x00\x00\x00\x01"
+            types.uint_len(2**56), b"\xfe\x00\x00\x00\x00\x00\x00\x00\x01"
         )
-        self.assertRaises(struct.error, types.int_len, 2**64)
+        self.assertRaises(struct.error, types.uint_len, 2**64)
 
     def test_str_fixed(self):
         self.assertEqual(types.str_fixed(0, b"kelsin"), b"")
@@ -133,54 +133,54 @@ class TestTypes(unittest.TestCase):
 
     def test_read_int_1(self):
         reader = io.BytesIO(b"\x01")
-        self.assertEqual(types.read_int_1(reader), 1)
+        self.assertEqual(types.read_uint_1(reader), 1)
         reader = io.BytesIO(b"\x00\x00")
-        self.assertEqual(types.read_int_1(reader), 0)
-        self.assertEqual(types.read_int_1(reader), 0)
+        self.assertEqual(types.read_uint_1(reader), 0)
+        self.assertEqual(types.read_uint_1(reader), 0)
 
     def test_read_int_2(self):
         reader = io.BytesIO(b"\x00\x01")
-        self.assertEqual(types.read_int_2(reader), 256)
+        self.assertEqual(types.read_uint_2(reader), 256)
 
     def test_read_int_3(self):
         reader = io.BytesIO(b"\x00\x00\x01")
-        self.assertEqual(types.read_int_3(reader), 2**16)
+        self.assertEqual(types.read_uint_3(reader), 2**16)
 
     def test_read_int_4(self):
         reader = io.BytesIO(b"\x01\x00\x00\x00")
-        self.assertEqual(types.read_int_4(reader), 1)
+        self.assertEqual(types.read_uint_4(reader), 1)
         reader = io.BytesIO(b"\x00\x00\x01\x00")
-        self.assertEqual(types.read_int_4(reader), 2**16)
+        self.assertEqual(types.read_uint_4(reader), 2**16)
         reader = io.BytesIO(b"\x00\x00\x00\x01")
-        self.assertEqual(types.read_int_4(reader), 2**24)
+        self.assertEqual(types.read_uint_4(reader), 2**24)
 
     def test_read_int_6(self):
         reader = io.BytesIO(b"\x01\x00\x00\x00\x00\x00")
-        self.assertEqual(types.read_int_6(reader), 1)
+        self.assertEqual(types.read_uint_6(reader), 1)
         reader = io.BytesIO(b"\x00\x00\x00\x00\x01\x00")
-        self.assertEqual(types.read_int_6(reader), 2**32)
+        self.assertEqual(types.read_uint_6(reader), 2**32)
         reader = io.BytesIO(b"\x00\x00\x00\x00\x00\x01")
-        self.assertEqual(types.read_int_6(reader), 2**40)
+        self.assertEqual(types.read_uint_6(reader), 2**40)
 
     def test_read_int_8(self):
         reader = io.BytesIO(b"\x01\x00\x00\x00\x00\x00\x00\x00")
-        self.assertEqual(types.read_int_8(reader), 1)
+        self.assertEqual(types.read_uint_8(reader), 1)
         reader = io.BytesIO(b"\x00\x00\x00\x00\x00\x00\x01\x00")
-        self.assertEqual(types.read_int_8(reader), 2**48)
+        self.assertEqual(types.read_uint_8(reader), 2**48)
         reader = io.BytesIO(b"\x00\x00\x00\x00\x00\x00\x00\x01")
-        self.assertEqual(types.read_int_8(reader), 2**56)
+        self.assertEqual(types.read_uint_8(reader), 2**56)
 
     def test_read_int_len(self):
         reader = io.BytesIO(b"\x01")
-        self.assertEqual(types.read_int_len(reader), 1)
+        self.assertEqual(types.read_uint_len(reader), 1)
         reader = io.BytesIO(b"\xfa")
-        self.assertEqual(types.read_int_len(reader), 250)
+        self.assertEqual(types.read_uint_len(reader), 250)
         reader = io.BytesIO(b"\xfc\x00\x01")
-        self.assertEqual(types.read_int_len(reader), 256)
+        self.assertEqual(types.read_uint_len(reader), 256)
         reader = io.BytesIO(b"\xfd\x00\x00\x01")
-        self.assertEqual(types.read_int_len(reader), 2**16)
+        self.assertEqual(types.read_uint_len(reader), 2**16)
         reader = io.BytesIO(b"\xfe\x00\x00\x00\x00\x00\x00\x00\x01")
-        self.assertEqual(types.read_int_len(reader), 2**56)
+        self.assertEqual(types.read_uint_len(reader), 2**56)
 
     def test_read_str_fixed(self):
         reader = io.BytesIO(b"kelsin")

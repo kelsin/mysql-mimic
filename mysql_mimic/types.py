@@ -5,56 +5,75 @@ from enum import IntEnum, IntFlag, auto
 
 
 class ColumnType(IntEnum):
-    DECIMAL = 0
-    TINY = 1
-    SHORT = 2
-    LONG = 3
-    FLOAT = 4
-    DOUBLE = 5
-    NULL = 6
-    TIMESTAMP = 7
-    LONGLONG = 8
-    INT24 = 9
-    DATE = 10
-    TIME = 11
-    DATETIME = 12
-    YEAR = 13
-    NEWDATE = 14
-    VARCHAR = 15
-    BIT = 16
-    TIMESTAMP2 = 17
-    DATETIME2 = 18
-    TIME2 = 19
-    TYPED_ARRAY = 20
-    INVALID = 243
-    BOOL = 244
-    JSON = 245
-    NEWDECIMAL = 246
-    ENUM = 247
-    SET = 248
-    TINY_BLOB = 249
-    MEDIUM_BLOB = 250
-    LONG_BLOB = 251
-    BLOB = 252
-    VAR_STRING = 253
-    STRING = 254
-    GEOMETRY = 255
+    DECIMAL = 0x00
+    TINY = 0x01
+    SHORT = 0x02
+    LONG = 0x03
+    FLOAT = 0x04
+    DOUBLE = 0x05
+    NULL = 0x06
+    TIMESTAMP = 0x07
+    LONGLONG = 0x08
+    INT24 = 0x09
+    DATE = 0x0A
+    TIME = 0x0B
+    DATETIME = 0x0C
+    YEAR = 0x0D
+    NEWDATE = 0x0E
+    VARCHAR = 0x0F
+    BIT = 0x10
+    TIMESTAMP2 = 0x11
+    DATETIME2 = 0x12
+    TIME2 = 0x13
+    TYPED_ARRAY = 0x14
+    INVALID = 0xF3
+    BOOL = 0xF4
+    JSON = 0xF5
+    NEWDECIMAL = 0xF6
+    ENUM = 0xF7
+    SET = 0xF8
+    TINY_BLOB = 0xF9
+    MEDIUM_BLOB = 0xFA
+    LONG_BLOB = 0xFB
+    BLOB = 0xFC
+    VAR_STRING = 0xFD
+    STRING = 0xFE
+    GEOMETRY = 0xFF
 
 
 class Commands(IntEnum):
-    COM_QUIT = 1
-    COM_INIT_DB = 2
-    COM_QUERY = 3
-    COM_FIELD_LIST = 4
-    COM_REFRESH = 7
-    COM_STATISTICS = 8
-    COM_PROCESS_INFO = 10
-    COM_PROCESS_KILL = 12
-    COM_DEBUG = 13
-    COM_PING = 14
-    COM_CHANGE_USER = 17
-    COM_SET_OPTION = 26
-    COM_RESET_CONNECTION = 31
+    COM_SLEEP = 0x00
+    COM_QUIT = 0x01
+    COM_INIT_DB = 0x02
+    COM_QUERY = 0x03
+    COM_FIELD_LIST = 0x04
+    COM_CREATE_DB = 0x05
+    COM_DROP_DB = 0x06
+    COM_REFRESH = 0x07
+    COM_SHUTDOWN = 0x08
+    COM_STATISTICS = 0x09
+    COM_PROCESS_INFO = 0x0A
+    COM_CONNECT = 0x0B
+    COM_PROCESS_KILL = 0x0C
+    COM_DEBUG = 0x0D
+    COM_PING = 0x0E
+    COM_TIME = 0x0F
+    COM_DELAYED_INSERT = 0x10
+    COM_CHANGE_USER = 0x11
+    COM_BINLOG_DUMP = 0x12
+    COM_TABLE_DUMP = 0x13
+    COM_CONNECT_OUT = 0x14
+    COM_REGISTER_SLAVE = 0x15
+    COM_STMT_PREPARE = 0x16
+    COM_STMT_EXECUTE = 0x17
+    COM_STMT_SEND_LONG_DATA = 0x18
+    COM_STMT_CLOSE = 0x19
+    COM_STMT_RESET = 0x1A
+    COM_SET_OPTION = 0x1B
+    COM_STMT_FETCH = 0x1C
+    COM_DAEMON = 0x1D
+    COM_BINLOG_DUMP_GTID = 0x1E
+    COM_RESET_CONNECTION = 0x1F
 
 
 class ColumnDefinition(IntFlag):
@@ -127,21 +146,20 @@ class Capabilities(IntFlag):
 
 
 class ServerStatus(IntFlag):
-    SERVER_STATUS_IN_TRANS = auto()
-    SERVER_STATUS_AUTOCOMMIT = auto()
-    SERVER_STATUS_UNKNOWN = auto()
-    SERVER_MORE_RESULTS_EXISTS = auto()
-    SERVER_QUERY_NO_GOOD_INDEX_USED = auto()
-    SERVER_QUERY_NO_INDEX_USES = auto()
-    SERVER_STATUS_CURSOR_EXISTS = auto()
-    SERVER_STATUS_LAST_ROW_SENT = auto()
-    SERVER_STATUS_DB_DROPPED = auto()
-    SERVER_STATUS_NO_BACKSLASH_ESCAPES = auto()
-    SERVER_STATUS_METADATA_CHANGED = auto()
-    SERVER_QUERY_WAS_SLOW = auto()
-    SERVER_PS_OUT_PARAMS = auto()
-    SERVER_STATUS_IN_TRANS_READONLY = auto()
-    SERVER_SESSION_STATE_CHANGED = auto()
+    SERVER_STATUS_IN_TRANS = 0x0001
+    SERVER_STATUS_AUTOCOMMIT = 0x0002
+    SERVER_MORE_RESULTS_EXISTS = 0x0008
+    SERVER_STATUS_NO_GOOD_INDEX_USED = 0x0010
+    SERVER_STATUS_NO_INDEX_USED = 0x0020
+    SERVER_STATUS_CURSOR_EXISTS = 0x0040
+    SERVER_STATUS_LAST_ROW_SENT = 0x0080
+    SERVER_STATUS_DB_DROPPED = 0x0100
+    SERVER_STATUS_NO_BACKSLASH_ESCAPES = 0x0200
+    SERVER_STATUS_METADATA_CHANGED = 0x0400
+    SERVER_QUERY_WAS_SLOW = 0x0800
+    SERVER_PS_OUT_PARAMS = 0x1000
+    SERVER_STATUS_IN_TRANS_READONLY = 0x2000
+    SERVER_SESSION_STATE_CHANGED = 0x4000
 
 
 class ResultsetMetadata(IntEnum):
@@ -149,55 +167,14 @@ class ResultsetMetadata(IntEnum):
     RESULTSET_METADATA_FULL = 1
 
 
-class CharacterSet(IntEnum):
-    BIG5 = 1
-    DEC8 = 3
-    CP850 = 4
-    HP8 = 6
-    KOI8R = 7
-    LATIN1 = 8
-    LATIN2 = 9
-    SWE7 = 10
-    ASCII = 11
-    UJIS = 12
-    SJIS = 13
-    HEBREW = 16
-    TIS620 = 18
-    EUCKR = 19
-    KOI8U = 22
-    GB2312 = 24
-    GREEK = 25
-    CP1250 = 26
-    GBK = 28
-    LATIN5 = 30
-    ARMSCII8 = 32
-    UTF8 = 33
-    UCS2 = 35
-    CP866 = 36
-    KEYBCS2 = 37
-    MACCE = 38
-    MACROMAN = 39
-    CP852 = 40
-    LATIN7 = 41
-    CP1251 = 51
-    UTF16 = 54
-    UTF16LE = 56
-    CP1256 = 57
-    CP1257 = 59
-    UTF32 = 60
-    BINARY = 63
-    GEOSTD8 = 92
-    CP932 = 95
-    EUCJPMS = 97
-    GB18030 = 248
-    UTF8MB4 = 255
-
-    @property
-    def codec(self):
-        return self.name.lower()
+class ComStmtExecuteFlags(IntFlag):
+    CURSOR_TYPE_NO_CURSOR = 0x00
+    CURSOR_TYPE_READ_ONLY = 0x01
+    CURSOR_TYPE_FOR_UPDATE = 0x02
+    CURSOR_TYPE_SCROLLABLE = 0x04
 
 
-def int_len(i):
+def uint_len(i):
     if i < 251:
         return struct.pack("<B", i)
     if i < 2**16:
@@ -208,27 +185,27 @@ def int_len(i):
     return struct.pack("<BQ", 0xFE, i)
 
 
-def int_1(i):
+def uint_1(i):
     return struct.pack("<B", i)
 
 
-def int_2(i):
+def uint_2(i):
     return struct.pack("<H", i)
 
 
-def int_3(i):
+def uint_3(i):
     return struct.pack("<HB", i & 0xFFFF, i >> 16)
 
 
-def int_4(i):
+def uint_4(i):
     return struct.pack("<I", i)
 
 
-def int_6(i):
+def uint_6(i):
     return struct.pack("<IH", i & 0xFFFFFFFF, i >> 32)
 
 
-def int_8(i):
+def uint_8(i):
     return struct.pack("<Q", i)
 
 
@@ -243,7 +220,7 @@ def str_null(s):
 
 def str_len(s):
     l = len(s)
-    return int_len(l) + str_fixed(l, s)
+    return uint_len(l) + str_fixed(l, s)
 
 
 def str_rest(s):
@@ -253,15 +230,25 @@ def str_rest(s):
 
 def read_int_1(reader):
     data = reader.read(1)
+    return struct.unpack("<b", data)[0]
+
+
+def read_uint_1(reader):
+    data = reader.read(1)
     return struct.unpack("<B", data)[0]
 
 
 def read_int_2(reader):
     data = reader.read(2)
+    return struct.unpack("<h", data)[0]
+
+
+def read_uint_2(reader):
+    data = reader.read(2)
     return struct.unpack("<H", data)[0]
 
 
-def read_int_3(reader):
+def read_uint_3(reader):
     data = reader.read(3)
     t = struct.unpack("<HB", data)
     return t[0] + (t[1] << 16)
@@ -269,10 +256,15 @@ def read_int_3(reader):
 
 def read_int_4(reader):
     data = reader.read(4)
+    return struct.unpack("<i", data)[0]
+
+
+def read_uint_4(reader):
+    data = reader.read(4)
     return struct.unpack("<I", data)[0]
 
 
-def read_int_6(reader):
+def read_uint_6(reader):
     data = reader.read(6)
     t = struct.unpack("<IH", data)
     return t[0] + (t[1] << 32)
@@ -280,20 +272,35 @@ def read_int_6(reader):
 
 def read_int_8(reader):
     data = reader.read(8)
+    return struct.unpack("<q", data)[0]
+
+
+def read_uint_8(reader):
+    data = reader.read(8)
     return struct.unpack("<Q", data)[0]
 
 
-def read_int_len(reader):
-    i = read_int_1(reader)
+def read_float(reader):
+    data = reader.read(4)
+    return struct.unpack("<f", data)[0]
+
+
+def read_double(reader):
+    data = reader.read(8)
+    return struct.unpack("<d", data)[0]
+
+
+def read_uint_len(reader):
+    i = read_uint_1(reader)
 
     if i == 0xFE:
-        return read_int_8(reader)
+        return read_uint_8(reader)
 
     if i == 0xFD:
-        return read_int_3(reader)
+        return read_uint_3(reader)
 
     if i == 0xFC:
-        return read_int_2(reader)
+        return read_uint_2(reader)
 
     return i
 
@@ -312,7 +319,7 @@ def read_str_null(reader):
 
 
 def read_str_len(reader):
-    l = read_int_len(reader)
+    l = read_uint_len(reader)
     return read_str_fixed(reader, l)
 
 
