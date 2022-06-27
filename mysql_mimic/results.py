@@ -64,19 +64,19 @@ def _find_first_non_null_value(idx, rows):
     return None
 
 
-def _bencode_bool(val):
+def _binary_encode_bool(val):
     return uint_1(int(val))
 
 
-def _bencode_str(val):
+def _binary_encode_str(val):
     return str_len(str(val).encode("utf-8"))
 
 
-def _bencode_bytes(val):
+def _binary_encode_bytes(val):
     return str_len(val)
 
 
-def _bencode_date(val):
+def _binary_encode_date(val):
     year = val.year
     month = val.month
     day = val.day
@@ -119,15 +119,15 @@ def _bencode_date(val):
     )
 
 
-def _bencode_int(val):
+def _binary_encode_int(val):
     return struct.pack("<q", val)
 
 
-def _bencode_float(val):
+def _binary_encode_float(val):
     return struct.pack("<d", val)
 
 
-def _bencode_timedelta(val):
+def _binary_encode_timedelta(val):
     days = abs(val.days)
     hours, remainder = divmod(abs(val.seconds), 3600)
     minutes, seconds = divmod(remainder, 60)
@@ -165,25 +165,25 @@ def _bencode_timedelta(val):
 # datetime is a subclass of date
 _ENCODERS = {
     # python type: (mysql type, text encoder, binary encoder),
-    bool: (ColumnType.TINY, lambda v: str(int(v)), _bencode_bool),
-    datetime: (ColumnType.DATETIME, str, _bencode_date),
-    str: (ColumnType.STRING, lambda v: v, _bencode_str),
-    bytes: (ColumnType.BLOB, lambda v: v, _bencode_bytes),
-    int: (ColumnType.LONGLONG, str, _bencode_int),
-    float: (ColumnType.DOUBLE, str, _bencode_float),
-    date: (ColumnType.DATE, str, _bencode_date),
-    timedelta: (ColumnType.TIME, str, _bencode_timedelta),
+    bool: (ColumnType.TINY, lambda v: str(int(v)), _binary_encode_bool),
+    datetime: (ColumnType.DATETIME, str, _binary_encode_date),
+    str: (ColumnType.STRING, lambda v: v, _binary_encode_str),
+    bytes: (ColumnType.BLOB, lambda v: v, _binary_encode_bytes),
+    int: (ColumnType.LONGLONG, str, _binary_encode_int),
+    float: (ColumnType.DOUBLE, str, _binary_encode_float),
+    date: (ColumnType.DATE, str, _binary_encode_date),
+    timedelta: (ColumnType.TIME, str, _binary_encode_timedelta),
 }
 
 
-def bencode(val):
+def binary_encode(val):
     for py_type, (_, _, encoder) in _ENCODERS.items():
         if isinstance(val, py_type):
             return encoder(val)
-    return _bencode_str(val)
+    return _binary_encode_str(val)
 
 
-def tencode(val):
+def text_encode(val):
     for py_type, (_, encoder, _) in _ENCODERS.items():
         if isinstance(val, py_type):
             return encoder(val)

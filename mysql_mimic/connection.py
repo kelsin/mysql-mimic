@@ -6,7 +6,12 @@ from typing import Optional, Dict, Iterable
 
 from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 from mysql_mimic.errors import ErrorCode, MysqlError, get_sqlstate
-from mysql_mimic.results import ensure_result_set, tencode, bencode, NullBitmap
+from mysql_mimic.results import (
+    ensure_result_set,
+    text_encode,
+    binary_encode,
+    NullBitmap,
+)
 from mysql_mimic.charset import CharacterSet, Collation
 from mysql_mimic import types
 from mysql_mimic.utils import seq
@@ -281,11 +286,12 @@ class Connection:
         num_rows = types.read_uint_4(r)
         stmt = self.get_stmt(stmt_id)
 
-        i = 0
-        for i, packet in zip(range(1, num_rows + 1), stmt.cursor):
+        count = 0
+        for _, packet in zip(range(num_rows), stmt.cursor):
             await self.stream.write(packet)
+            count += 1
 
-        done = i < num_rows
+        done = count < num_rows
 
         await self.stream.write(
             self.ok_or_eof(
@@ -605,7 +611,7 @@ class Connection:
                 if value is None:
                     row_data.append(b"\xfb")
                 else:
-                    text = tencode(value)
+                    text = text_encode(value)
                     if isinstance(text, str):
                         text = text.encode(self.server_character_set.codec)
                     row_data.append(types.str_len(text))
@@ -626,7 +632,7 @@ class Connection:
             if val is None:
                 null_bitmap.flip(i)
             else:
-                values.append(bencode(val))
+                values.append(binary_encode(val))
 
         values_data = b"".join(values)
 
