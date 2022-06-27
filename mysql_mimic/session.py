@@ -37,3 +37,11 @@ class Session:
         Args:
             connection (Connection): connection of the session
         """
+
+    async def set(self, **kwargs):
+        """
+        Set session variables.
+
+        Args:
+            **kwargs: mapping of variable names to values
+        """

@@ -1,5 +1,6 @@
 import unittest
 
+from mysql_mimic.errors import MysqlError
 from mysql_mimic.stream import MysqlStream
 
 
@@ -23,55 +24,58 @@ class MockWriter:
     def write(self, data):
         self.data += data
 
+    async def drain(self):
+        return
+
 
 class TestMysqlStream(unittest.IsolatedAsyncioTestCase):
     def test_seq(self):
         s1 = MysqlStream(reader=None, writer=None)
-        self.assertEqual(s1.seq(), 0)
-        self.assertEqual(s1.seq(), 1)
-        self.assertEqual(s1.seq(), 2)
+        self.assertEqual(next(s1.seq), 0)
+        self.assertEqual(next(s1.seq), 1)
+        self.assertEqual(next(s1.seq), 2)
         s2 = MysqlStream(reader=None, writer=None)
-        self.assertEqual(s2.seq(), 0)
-        self.assertEqual(s2.seq(), 1)
-        self.assertEqual(s2.seq(), 2)
+        self.assertEqual(next(s2.seq), 0)
+        self.assertEqual(next(s2.seq), 1)
+        self.assertEqual(next(s2.seq), 2)
 
     def test_reset_seq(self):
         s = MysqlStream(reader=None, writer=None)
-        self.assertEqual(s.seq(), 0)
-        self.assertEqual(s.seq(), 1)
+        self.assertEqual(next(s.seq), 0)
+        self.assertEqual(next(s.seq), 1)
         s.reset_seq()
-        self.assertEqual(s.seq(), 0)
-        self.assertEqual(s.seq(), 1)
+        self.assertEqual(next(s.seq), 0)
+        self.assertEqual(next(s.seq), 1)
 
     async def test_bad_seq_read(self):
         reader = MockReader(b"\x00\x00\x00\x01")
         s = MysqlStream(reader=reader, writer=None)
-        with self.assertRaises(ValueError):
+        with self.assertRaises(MysqlError):
             await s.read()
 
     async def test_empty_read(self):
         reader = MockReader(b"\x00\x00\x00\x00")
         s = MysqlStream(reader=reader, writer=None)
         self.assertEqual(await s.read(), b"")
-        self.assertEqual(s.seq(), 1)
+        self.assertEqual(next(s.seq), 1)
 
     async def test_small_read(self):
         reader = MockReader(b"\x01\x00\x00\x00k")
         s = MysqlStream(reader=reader, writer=None)
         self.assertEqual(await s.read(), b"k")
-        self.assertEqual(s.seq(), 1)
+        self.assertEqual(next(s.seq), 1)
 
     async def test_medium_read(self):
         reader = MockReader(b"\xff\xff\x00\x00" + bytes(0xFFFF))
         s = MysqlStream(reader=reader, writer=None)
         self.assertEqual(await s.read(), bytes(0xFFFF))
-        self.assertEqual(s.seq(), 1)
+        self.assertEqual(next(s.seq), 1)
 
     async def test_edge_read(self):
         reader = MockReader(b"\xff\xff\xff\x00" + bytes(0xFFFFFF) + b"\x00\x00\x00\x01")
         s = MysqlStream(reader=reader, writer=None)
         self.assertEqual(await s.read(), bytes(0xFFFFFF))
-        self.assertEqual(s.seq(), 2)
+        self.assertEqual(next(s.seq), 2)
 
     async def test_large_read(self):
         reader = MockReader(
@@ -79,44 +83,44 @@ class TestMysqlStream(unittest.IsolatedAsyncioTestCase):
         )
         s = MysqlStream(reader=reader, writer=None)
         self.assertEqual(await s.read(), bytes(0xFFFFFF) + b"kelsin")
-        self.assertEqual(s.seq(), 2)
+        self.assertEqual(next(s.seq), 2)
 
     async def test_empty_write(self):
         writer = MockWriter()
         s = MysqlStream(reader=None, writer=writer)
-        s.write(b"")
+        await s.write(b"")
         self.assertEqual(writer.data, b"\x00\x00\x00\x00")
-        self.assertEqual(s.seq(), 1)
+        self.assertEqual(next(s.seq), 1)
 
     async def test_small_write(self):
         writer = MockWriter()
         s = MysqlStream(reader=None, writer=writer)
-        s.write(b"kelsin")
+        await s.write(b"kelsin")
         self.assertEqual(writer.data, b"\x06\x00\x00\x00kelsin")
-        self.assertEqual(s.seq(), 1)
+        self.assertEqual(next(s.seq), 1)
 
     async def test_medium_write(self):
         writer = MockWriter()
         s = MysqlStream(reader=None, writer=writer)
-        s.write(bytes(0xFFFF))
+        await s.write(bytes(0xFFFF))
         self.assertEqual(writer.data, b"\xff\xff\x00\x00" + bytes(0xFFFF))
-        self.assertEqual(s.seq(), 1)
+        self.assertEqual(next(s.seq), 1)
 
     async def test_edge_write(self):
         writer = MockWriter()
         s = MysqlStream(reader=None, writer=writer)
-        s.write(bytes(0xFFFFFF))
+        await s.write(bytes(0xFFFFFF))
         self.assertEqual(
             writer.data, b"\xff\xff\xff\x00" + bytes(0xFFFFFF) + b"\x00\x00\x00\x01"
         )
-        self.assertEqual(s.seq(), 2)
+        self.assertEqual(next(s.seq), 2)
 
     async def test_large_write(self):
         writer = MockWriter()
         s = MysqlStream(reader=None, writer=writer)
-        s.write(bytes(0xFFFFFF) + b"kelsin")
+        await s.write(bytes(0xFFFFFF) + b"kelsin")
         self.assertEqual(
             writer.data,
             b"\xff\xff\xff\x00" + bytes(0xFFFFFF) + b"\x06\x00\x00\x01kelsin",
         )
-        self.assertEqual(s.seq(), 2)
+        self.assertEqual(next(s.seq), 2)

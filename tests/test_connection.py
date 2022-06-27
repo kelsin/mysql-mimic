@@ -7,7 +7,7 @@ from mysql_mimic.connection import Connection
 
 class TestMysqlServer(unittest.TestCase):
     def setUp(self) -> None:
-        self.conn = Connection(Mock(), Mock())
+        self.conn = Connection(Mock(), Mock(), Mock())
 
     def test_ok(self):
         self.conn.capabilities = self.conn.server_capabilities
@@ -45,5 +45,5 @@ class TestMysqlServer(unittest.TestCase):
     def test_column_definition_41(self):
         self.assertEqual(
             self.conn.column_definition_41(),
-            b"\x03def\x00\x00\x00\x00\x00\x0c!\x00\x00\x01\x00\x00\x0f\x00\x00\x00\x00\x00",
+            b"\x03def\x00\x00\x00\x00\x00\x0c\xff\x00\x00\x01\x00\x00\x0f\x00\x00\x00\x00\x00",
         )

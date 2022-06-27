@@ -18,6 +18,7 @@ setup(
     extras_require={
         "dev": [
             "aiomysql",
+            "mysql-connector-python",
             "black",
             "coverage",
             "pylint",
