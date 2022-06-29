@@ -204,3 +204,16 @@ class TestIntegration(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(
                     conn1.server_thread_id[0] + 1, conn2.server_thread_id[0]
                 )
+
+    async def test_replace_variables(self):
+        self.session.echo = True
+
+        result = await self.aiomysql_query("SELECT CONNECTION_ID()")
+        parts = result[0]["sql"].split(" ")
+        self.assertEqual(parts[0], "SELECT")
+        self.assertTrue(int(parts[1]))
+
+        result = await self.aiomysql_query("SELECT @@version_comment")
+        parts = result[0]["sql"].split(" ")
+        self.assertEqual(parts[0], "SELECT")
+        self.assertEqual(parts[1], "'mysql-mimic'")

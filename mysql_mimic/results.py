@@ -1,7 +1,7 @@
 import struct
 from dataclasses import dataclass
 from datetime import datetime, date, timedelta
-from typing import Iterable, Sequence
+from typing import Iterable, Sequence, Optional
 
 from mysql_mimic.errors import MysqlError
 from mysql_mimic.types import ColumnType, str_len, uint_1, uint_2, uint_4
@@ -10,6 +10,8 @@ from mysql_mimic.charset import CharacterSet
 
 @dataclass
 class ResultColumn:
+    """Column data for a result set"""
+
     name: str
     type: ColumnType
     character_set: CharacterSet = CharacterSet.utf8mb4
@@ -19,6 +21,28 @@ class ResultColumn:
 class ResultSet:
     rows: Iterable[Sequence]
     columns: Sequence[ResultColumn]
+
+    def __bool__(self):
+        return bool(self.columns)
+
+
+@dataclass
+class Column:
+    """
+    Column data for a SHOW COLUMNS statement
+
+    https://dev.mysql.com/doc/refman/8.0/en/show-columns.html
+    """
+
+    name: str
+    type: str
+    collation: str = "NULL"
+    null: str = "YES"
+    key: Optional[str] = None
+    default: Optional[str] = None
+    extra: Optional[str] = None
+    privileges: Optional[str] = None
+    comment: Optional[str] = None
 
 
 def ensure_result_set(result):
