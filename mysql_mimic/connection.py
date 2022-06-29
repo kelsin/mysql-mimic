@@ -15,7 +15,7 @@ from mysql_mimic.results import (
 from mysql_mimic.charset import CharacterSet, Collation
 from mysql_mimic import types
 from mysql_mimic.utils import seq
-from mysql_mimic.variables import parse_set_command
+from mysql_mimic.admin import Admin
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,6 @@ class Connection:
         connection_id,
         session,
         server_capabilities=DEFAULT_SERVER_CAPABILITIES,
-        mysql_version="8.0.29",
         force_cursor=False,
     ):
         """
@@ -44,7 +43,6 @@ class Connection:
             connection_id (int): 32 bit connection ID
             session (mysql_mimic.session.Session): session
             server_capabilities (int): server capability flags
-            mysql_version (str): version of MySQL to claim during handshake
             force_cursor (bool): If True, always send a cursor when executing prepared statements,
                 even if the client doesn't explicitly request it. This is here to get around a bug
                 in mysql-connector-python, which doesn't properly set cursor flags.
@@ -59,19 +57,32 @@ class Connection:
         self.status_flags = types.ServerStatus(0)
 
         self.max_packet_size = 0
-        self.server_character_set = CharacterSet.utf8mb4
-        self.client_character_set = CharacterSet.utf8mb4
-        self.username = None
         self.auth_response = None
-        self.database = None
         self.client_plugin_name = None
         self.client_connect_attrs = {}
         self.zstd_compression_level = 0
-        self.mysql_version = mysql_version
         self.force_cursor = force_cursor
 
         self.prepared_stmt_seq = seq(self._MAX_PREPARED_STMT_ID)
         self.prepared_stmts = {}
+
+        self.admin = Admin(connection_id=connection_id, session=session)
+
+    @property
+    def server_character_set(self):
+        return self.admin.server_character_set
+
+    @property
+    def client_character_set(self):
+        return self.admin.client_character_set
+
+    @property
+    def database(self):
+        return self.admin.database
+
+    @property
+    def username(self):
+        return self.admin.username
 
     async def start(self):
         logger.info("Started new connection: %s", self.connection_id)
@@ -175,19 +186,11 @@ class Connection:
         """
         sql = data.decode(self.client_character_set.codec)
 
-        variables = parse_set_command(sql)
-        if variables is not None:
-            await self.set_variables(variables)
+        result_set = await self.query(sql)
+
+        if not result_set:
             await self.stream.write(self.ok())
             return
-
-        result_set = await self.session.query(sql)
-
-        if result_set is None:
-            await self.stream.write(self.ok())
-            return
-
-        result_set = ensure_result_set(result_set)
 
         for packet in self.text_resultset(result_set):
             await self.stream.write(packet)
@@ -242,13 +245,11 @@ class Connection:
         sql = self.interpolate_params(r, stmt)
         stmt.param_buffers = None
 
-        result_set = await self.session.query(sql)
+        result_set = await self.query(sql)
 
-        if result_set is None:
+        if not result_set:
             await self.stream.write(self.ok())
             return
-
-        result_set = ensure_result_set(result_set)
 
         await self.stream.write(types.uint_len(len(result_set.columns)))
 
@@ -324,15 +325,6 @@ class Connection:
         r = io.BytesIO(data)
         stmt_id = types.read_uint_4(r)
         self.prepared_stmts.pop(stmt_id, None)
-
-    async def set_variables(self, variables):
-        character_set_client = variables.get("character_set_client")
-        character_set_results = variables.get("character_set_results")
-        if character_set_client:
-            self.client_character_set = CharacterSet[character_set_client]
-        if character_set_results:
-            self.server_character_set = CharacterSet[character_set_results]
-        await self.session.set(**variables)
 
     def read_cursor_flags(self, reader):
         flags = types.read_uint_1(reader)
@@ -429,6 +421,16 @@ class Connection:
             return self.prepared_stmts[stmt_id]
         raise MysqlError(f"Unknown statement: {stmt_id}", ErrorCode.UNKNOWN_PROCEDURE)
 
+    async def query(self, sql):
+        result_set = await self.admin.parse(sql)
+
+        if result_set is None:
+            sql = self.admin.replace_variables(sql)
+            result_set = await self.session.query(sql)
+            result_set = result_set and ensure_result_set(result_set)
+
+        return result_set
+
     def ok(self, eof=False, affected_rows=0, last_insert_id=0, warnings=0, flags=0):
         """https://dev.mysql.com/doc/internals/en/packet-OK_Packet.html"""
         data = types.uint_1(0) if not eof else types.uint_1(0xFE)
@@ -522,9 +524,9 @@ class Connection:
         self.client_capabilities = types.Capabilities(types.read_uint_4(r))
         self.capabilities = self.server_capabilities & self.client_capabilities
         self.max_packet_size = types.read_uint_4(r)
-        self.client_character_set = Collation(types.read_uint_1(r)).charset
+        self.admin.client_character_set = Collation(types.read_uint_1(r)).charset
         types.read_str_fixed(r, 23)
-        self.username = types.read_str_null(r).decode()
+        self.admin.username = types.read_str_null(r).decode()
 
         if (
             types.Capabilities.CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA
@@ -536,7 +538,7 @@ class Connection:
             self.auth_response = types.read_str_fixed(r, l_auth_response).decode()
 
         if types.Capabilities.CLIENT_CONNECT_WITH_DB in self.capabilities:
-            self.database = types.read_str_null(r).decode()
+            self.admin.database = types.read_str_null(r).decode()
 
         if types.Capabilities.CLIENT_PLUGIN_AUTH in self.capabilities:
             self.client_plugin_name = types.read_str_null(r).decode()
@@ -560,7 +562,7 @@ class Connection:
         return (
             types.uint_1(10)  # Always 10
             + types.str_null(
-                self.mysql_version.encode(self.server_character_set.codec)
+                self.admin.mysql_version.encode(self.server_character_set.codec)
             )  # Status
             + types.uint_4(self.connection_id)  # Connection ID
             + types.str_null(bytes(8))  # plugin data

@@ -45,3 +45,15 @@ class Session:
         Args:
             **kwargs: mapping of variable names to values
         """
+
+    async def show_columns(self, database, table):  # pylint: disable=unused-argument
+        """
+        Show column metadata.
+
+        Args:
+            database (str): database name
+            table (str): table name
+        Returns:
+            list[mysql_mimic.results.Column|dict]: columns
+        """
+        return []

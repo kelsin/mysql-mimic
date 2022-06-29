@@ -1,5 +1,7 @@
-from mysql_mimic import types
+from mysql_mimic.types import Capabilities
 
 DEFAULT_SERVER_CAPABILITIES = (
-    types.Capabilities.CLIENT_PROTOCOL_41 | types.Capabilities.CLIENT_DEPRECATE_EOF
+    Capabilities.CLIENT_PROTOCOL_41
+    | Capabilities.CLIENT_DEPRECATE_EOF
+    | Capabilities.CLIENT_CONNECT_WITH_DB
 )
