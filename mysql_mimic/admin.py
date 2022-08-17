@@ -142,7 +142,9 @@ class Admin:
             "version_comment": "mysql-mimic",
             "character_set_client": CharacterSet.utf8mb4.name,
             "character_set_results": CharacterSet.utf8mb4.name,
+            "character_set_server": CharacterSet.utf8mb4.name,
             "collation_server": Collation.utf8mb4_general_ci.name,
+            "collation_database": Collation.utf8mb4_general_ci.name,
         }
         self.variables = dict(**self.variable_defaults)
 
