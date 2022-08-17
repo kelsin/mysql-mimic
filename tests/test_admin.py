@@ -57,7 +57,9 @@ class TestAdmin(unittest.IsolatedAsyncioTestCase):
                     "version": "8.0.29",
                     "character_set_client": "utf8mb4",
                     "character_set_results": "utf8mb4",
+                    "character_set_server": "utf8mb4",
                     "collation_server": "utf8mb4_general_ci",
+                    "collation_database": "utf8mb4_general_ci",
                 },
             ),
             (
