@@ -43,8 +43,8 @@ class MockSession(Session):
     async def init(self, connection):
         self.connection = connection
 
-    async def query(self, sql, query_attrs):
-        self.last_query_attrs = query_attrs
+    async def query(self, sql, attrs):
+        self.last_query_attrs = attrs
         if self.use_sqlite:
             cursor = self.sqlite.execute(sql)
             return cursor.fetchall(), [d[0] for d in cursor.description]

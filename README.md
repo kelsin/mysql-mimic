@@ -29,7 +29,7 @@ class MySession(Session):
     async def init(self, connection):
         print(f"new session: {connection}")
   
-    async def query(self, sql, query_attrs):
+    async def query(self, sql, attrs):
         print(f"received query: {sql}")
         return [("a", 1), ("b", 2)], ["col1", "col2"]
   

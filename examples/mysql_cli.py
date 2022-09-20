@@ -12,7 +12,7 @@ class SqliteProxySession(Session):
         self.conn.execute("INSERT INTO x VALUES (1)")
         self.conn.execute("INSERT INTO x VALUES (2)")
 
-    async def query(self, sql, query_attrs):
+    async def query(self, sql, attrs):
         print(f"Received query: {sql}")
         cursor = self.conn.cursor()
         cursor.execute(sql)
