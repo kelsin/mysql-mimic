@@ -3,12 +3,15 @@ import functools
 import io
 import unittest
 import socket
+import sqlite3
 from datetime import date, datetime, timedelta
 from functools import partial
 
 import aiomysql
 import mysql.connector
 from mysql.connector.connection import MySQLCursorPrepared, MySQLCursorDict
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy import text
 
 from mysql_mimic import MysqlServer, Session
 from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
@@ -32,12 +35,19 @@ class MockSession(Session):
         super().__init__()
         self.return_value = None
         self.echo = False
+        self.sqlite = sqlite3.connect(":memory:")
+        self.use_sqlite = False
         self.connection = None
+        self.last_query_attrs = None
 
     async def init(self, connection):
         self.connection = connection
 
-    async def query(self, sql):
+    async def query(self, sql, query_attrs):
+        self.last_query_attrs = query_attrs
+        if self.use_sqlite:
+            cursor = self.sqlite.execute(sql)
+            return cursor.fetchall(), [d[0] for d in cursor.description]
         if self.echo:
             return [(sql,)], ["sql"]
         return self.return_value
@@ -69,6 +79,7 @@ class TestIntegration(unittest.IsolatedAsyncioTestCase):
                 DEFAULT_SERVER_CAPABILITIES
                 | Capabilities.CLIENT_CONNECT_WITH_DB
                 | Capabilities.CLIENT_CONNECT_ATTRS
+                | Capabilities.CLIENT_QUERY_ATTRIBUTES
             ),
             port=self.port,
             conn_kwargs={"force_cursor": True},
@@ -80,6 +91,9 @@ class TestIntegration(unittest.IsolatedAsyncioTestCase):
             mysql.connector.connect, use_pure=True, port=self.port
         )
         self.aiomysql_conn = await aiomysql.connect(port=self.port)
+        self.sqlalchemy_engine = create_async_engine(
+            url=f"mysql+aiomysql://127.0.0.1:{self.port}"
+        )
 
     async def asyncTearDown(self):
         self.mysql_conn.close()
@@ -87,26 +101,41 @@ class TestIntegration(unittest.IsolatedAsyncioTestCase):
         self.server.close()
         await self.server.wait_closed()
 
-    async def mysql_query(self, sql, cursor_class=MySQLCursorDict, params=None):
+    async def mysql_query(
+        self, sql, cursor_class=MySQLCursorDict, params=None, query_attributes=None
+    ):
         cursor = await to_thread(self.mysql_conn.cursor, cursor_class=cursor_class)
+        if query_attributes:
+            for key, value in query_attributes.items():
+                cursor.add_attribute(key, value)
         await to_thread(cursor.execute, sql, *(p for p in [params] if p))
         result = await to_thread(cursor.fetchall)
         await to_thread(cursor.close)
         return result
 
-    async def aiomysql_query(self, sql, cursor_class=aiomysql.DictCursor, params=None):
-        async with self.aiomysql_conn.cursor(cursor_class) as cur:
-            await cur.execute(sql, *(p for p in [params] if p))
+    async def aiomysql_query(self, sql):
+        async with self.aiomysql_conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(sql)
             return await cur.fetchall()
+
+    async def sqlalchemy_query(self, sql):
+        # Sqlalchemy fires off a bunch of metadata queries when connecting.
+        # We'll just route things like "SELECT VERSION()" to sqlite, which should be
+        # fine because the connection replaces "VERSION()" with the version name.
+        self.session.use_sqlite = True
+        async with self.sqlalchemy_engine.connect() as conn:
+            self.session.use_sqlite = False
+            cursor = await conn.execute(text(sql))
+            return cursor.mappings().all()
 
     async def test_query(self):
         for query in [
             self.mysql_query,
             partial(self.mysql_query, cursor_class=PreparedDictCursor),
             self.aiomysql_query,
+            self.sqlalchemy_query,
         ]:
             for rv, expected in [
-                (None, []),
                 (((("x",),), ("b",)), [{"b": "x"}]),
                 (([["1"]], ["b"]), [{"b": "1"}]),
                 (([(1,)], ("b",)), [{"b": 1}]),
@@ -153,7 +182,7 @@ class TestIntegration(unittest.IsolatedAsyncioTestCase):
             ]:
                 self.session.return_value = rv
                 result = await query("SELECT b FROM a")
-                self.assertEqual(result, expected)
+                self.assertEqual(expected, result)
 
     async def test_prepared_stmt(self):
         self.session.echo = True
@@ -217,3 +246,24 @@ class TestIntegration(unittest.IsolatedAsyncioTestCase):
         parts = result[0]["sql"].split(" ")
         self.assertEqual(parts[0], "SELECT")
         self.assertEqual(parts[1], "'mysql-mimic'")
+
+    async def test_query_attributes(self):
+        self.session.echo = True
+
+        for i, query in enumerate(
+            [
+                self.mysql_query,
+                partial(self.mysql_query, cursor_class=PreparedDictCursor),
+            ]
+        ):
+            self.session.last_query_attrs = None
+            sql = "SELECT 1"
+            query_attrs = {
+                "idx": i,
+                "str": "foo",
+                "int": 1,
+                "float": 1.1,
+            }
+            result = await query(sql, query_attributes=query_attrs)
+            self.assertEqual(self.session.last_query_attrs, query_attrs)
+            self.assertEqual(result[0]["sql"], sql)

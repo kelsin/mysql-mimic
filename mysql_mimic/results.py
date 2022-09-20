@@ -259,3 +259,6 @@ class NullBitmap:
 
     def __bytes__(self):
         return bytes(self.bitmap)
+
+    def __repr__(self):
+        return "".join(format(b, "08b") for b in self.bitmap)

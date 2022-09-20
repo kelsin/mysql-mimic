@@ -24,6 +24,7 @@ setup(
             "pylint",
             "pytest",
             "sphinx",
+            "sqlalchemy",
             "twine",
             "wheel",
         ],

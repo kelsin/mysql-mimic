@@ -325,3 +325,10 @@ def read_str_len(reader):
 
 def read_str_rest(reader):
     return reader.read()
+
+
+def peek(reader, num_bytes=1):
+    pos = reader.tell()
+    val = reader.read(num_bytes)
+    reader.seek(pos)
+    return val
