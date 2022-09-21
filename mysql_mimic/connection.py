@@ -14,6 +14,7 @@ from mysql_mimic.results import (
 )
 from mysql_mimic.charset import CharacterSet, Collation
 from mysql_mimic import types
+from mysql_mimic.types import Capabilities
 from mysql_mimic.utils import seq
 from mysql_mimic.admin import Admin
 
@@ -52,8 +53,8 @@ class Connection:
         self.connection_id = connection_id
 
         self.server_capabilities = server_capabilities
-        self.client_capabilities = types.Capabilities(0)
-        self.capabilities = types.Capabilities(0)
+        self.client_capabilities = Capabilities(0)
+        self.capabilities = Capabilities(0)
         self.status_flags = types.ServerStatus(0)
 
         self.max_packet_size = 0
@@ -184,9 +185,19 @@ class Connection:
 
         COM_QUERY is used to send the server a text-based query that is executed immediately.
         """
-        sql = data.decode(self.client_character_set.codec)
 
-        result_set = await self.query(sql)
+        r = io.BytesIO(data)
+
+        if Capabilities.CLIENT_QUERY_ATTRIBUTES in self.capabilities:
+            parameter_count = types.read_uint_len(r)
+            types.read_uint_len(r)  # parameter_set_count. Always 1.
+            query_attrs = dict(self.read_params(r, parameter_count))
+        else:
+            query_attrs = {}
+
+        sql = r.read().decode(self.client_character_set.codec)
+
+        result_set = await self.query(sql, query_attrs)
 
         if not result_set:
             await self.stream.write(self.ok())
@@ -241,11 +252,11 @@ class Connection:
         stmt_id = types.read_uint_4(r)
         stmt = self.get_stmt(stmt_id)
         use_cursor = self.read_cursor_flags(r)
-        types.read_uint_4(r)  # iteration count
-        sql = self.interpolate_params(r, stmt)
+        types.read_uint_4(r)  # iteration count. Always 1.
+        sql, query_attrs = self.interpolate_params(r, stmt)
         stmt.param_buffers = None
 
-        result_set = await self.query(sql)
+        result_set = await self.query(sql, query_attrs)
 
         if not result_set:
             await self.stream.write(self.ok())
@@ -341,8 +352,45 @@ class Connection:
 
     def interpolate_params(self, reader, stmt):
         sql = stmt.sql
-        if stmt.num_params:
-            null_bitmap = NullBitmap.from_buffer(reader, stmt.num_params)
+
+        # If CLIENT_QUERY_ATTRIBUTES is set, the parameter count is in the packet, and it's
+        # the sum of statement parameters AND query attributes.
+        # Mysql-connector doesn't set this count if there are no statement parameters nor query attributes.
+        if Capabilities.CLIENT_QUERY_ATTRIBUTES in self.capabilities and types.peek(
+            reader
+        ):
+            parameter_count = types.read_uint_len(reader)
+        else:
+            parameter_count = stmt.num_params
+
+        # When there are query attributes, they are combined with statement parameters.
+        # The statement parameters will be first, query attributes second.
+        params = self.read_params(reader, parameter_count, stmt.param_buffers)
+
+        for _, value in params[: stmt.num_params]:
+            sql = REGEX_PARAM.sub(self.encode_param_as_sql(value), sql, 1)
+
+        query_attrs = dict(params[stmt.num_params :])
+
+        return sql, query_attrs
+
+    def read_params(self, reader, parameter_count, buffers=None):
+        """
+        Read parameters from a stream.
+
+        This is intended for reading query attributes from COM_QUERY and parameters from COM_STMT_EXECUTE.
+        Args:
+            reader (io.BytesIO)
+            parameter_count (int)
+            buffers (dict[int, bytearray])
+        Returns:
+            list[tuple]: Name/value pairs. Name is None if there is no name, which is the case
+                for stmt_execute, which combines statement parameters and query attributes.
+        """
+        params = []
+
+        if parameter_count:
+            null_bitmap = NullBitmap.from_buffer(reader, parameter_count)
             new_params_bound_flag = types.read_uint_1(reader)
 
             if not new_params_bound_flag:
@@ -352,29 +400,62 @@ class Connection:
                 )
 
             param_types = []
-            for _ in range(stmt.num_params):
-                param_type = types.ColumnType(types.read_uint_1(reader))
-                is_unsigned = (types.read_uint_1(reader) & 0x80) > 0
-                param_types.append((param_type, is_unsigned))
 
-            for param_id, (param_type, is_unsigned) in enumerate(param_types):
-                if null_bitmap.is_flipped(param_id):
-                    param = "NULL"
-                else:
-                    param = self.read_param(
-                        reader, param_type, is_unsigned, param_id, stmt
+            for i in range(parameter_count):
+                param_type, unsigned = self.read_param_type(reader)
+
+                if Capabilities.CLIENT_QUERY_ATTRIBUTES in self.capabilities:
+                    # Only query attributes have names
+                    # Statement parameters will have an empty name, e.g. b"\x00"
+                    param_name = types.read_str_len(reader).decode(
+                        self.client_character_set.codec
                     )
-                sql = REGEX_PARAM.sub(param, sql, 1)
+                else:
+                    param_name = ""
 
-        return sql
+                param_types.append((param_name, param_type, unsigned))
 
-    def read_param(self, reader, param_type, unsigned, param_id, stmt):
-        if stmt.param_buffers and param_id in stmt.param_buffers:
-            decoded = bytes(stmt.param_buffers[param_id]).decode(
-                self.client_character_set.codec
-            )
-            return f"'{decoded}'"
+            for i, (param_name, param_type, unsigned) in enumerate(param_types):
+                if null_bitmap.is_flipped(i):
+                    params.append((param_name, None))
+                elif buffers and i in buffers:
+                    params.append(
+                        (param_name, buffers[i].decode(self.client_character_set.codec))
+                    )
+                else:
+                    params.append(
+                        (
+                            param_name,
+                            self.read_param_value(reader, param_type, unsigned),
+                        )
+                    )
 
+        return params
+
+    def read_param_type(self, reader):
+        """
+        Read a parameter type from a stream.
+
+        Args:
+            reader (io.BytesIO)
+        Returns:
+            tuple[types.ColumnType, bool]: tuple of (type, unsigned)
+        """
+        param_type = types.ColumnType(types.read_uint_1(reader))
+        is_unsigned = (types.read_uint_1(reader) & 0x80) > 0
+        return param_type, is_unsigned
+
+    def read_param_value(self, reader, param_type, unsigned):
+        """
+        Read a parameter value from a stream.
+
+        Args:
+            reader (io.BytesIO)
+            param_type (types.ColumnType)
+            unsigned (bool)
+        Returns:
+            parameter value
+        """
         if param_type in {
             types.ColumnType.VARCHAR,
             types.ColumnType.VAR_STRING,
@@ -385,48 +466,58 @@ class Connection:
             types.ColumnType.LONG_BLOB,
         }:
             val = types.read_str_len(reader)
-            decoded = val.decode(self.client_character_set.codec)
-            return f"'{decoded}'"
+            return val.decode(self.client_character_set.codec)
 
         if param_type == types.ColumnType.TINY:
-            return str((types.read_uint_1 if unsigned else types.read_int_1)(reader))
+            return (types.read_uint_1 if unsigned else types.read_int_1)(reader)
 
         if param_type == types.ColumnType.BOOL:
-            return "TRUE" if types.read_uint_1(reader) else "FALSE"
+            return types.read_uint_1(reader)
 
         if param_type in {types.ColumnType.SHORT, types.ColumnType.YEAR}:
-            return str((types.read_uint_2 if unsigned else types.read_int_2)(reader))
+            return (types.read_uint_2 if unsigned else types.read_int_2)(reader)
 
         if param_type in {types.ColumnType.LONG, types.ColumnType.INT24}:
-            return str((types.read_uint_4 if unsigned else types.read_int_4)(reader))
+            return (types.read_uint_4 if unsigned else types.read_int_4)(reader)
 
         if param_type == types.ColumnType.LONGLONG:
-            return str((types.read_uint_8 if unsigned else types.read_int_8)(reader))
+            return (types.read_uint_8 if unsigned else types.read_int_8)(reader)
 
         if param_type == types.ColumnType.FLOAT:
-            return str(types.read_float(reader))
+            return types.read_float(reader)
 
         if param_type == types.ColumnType.DOUBLE:
-            return str(types.read_double(reader))
+            return types.read_double(reader)
 
         if param_type == types.ColumnType.NULL:
-            return "NULL"
+            return None
 
         raise MysqlError(
             f"Unsupported parameter type: {param_type}", ErrorCode.NOT_SUPPORTED_YET
         )
+
+    def encode_param_as_sql(self, param):
+        if isinstance(param, str):
+            return f"'{param}'"
+        if param is None:
+            return "NULL"
+        if param is True:
+            return "TRUE"
+        if param is False:
+            return "FALSE"
+        return str(param)
 
     def get_stmt(self, stmt_id):
         if stmt_id in self.prepared_stmts:
             return self.prepared_stmts[stmt_id]
         raise MysqlError(f"Unknown statement: {stmt_id}", ErrorCode.UNKNOWN_PROCEDURE)
 
-    async def query(self, sql):
+    async def query(self, sql, query_attrs):
         result_set = await self.admin.parse(sql)
 
         if result_set is None:
             sql = self.admin.replace_variables(sql)
-            result_set = await self.session.query(sql)
+            result_set = await self.session.query(sql, query_attrs)
             result_set = result_set and ensure_result_set(result_set)
 
         return result_set
@@ -436,10 +527,10 @@ class Connection:
         data = types.uint_1(0) if not eof else types.uint_1(0xFE)
         data += types.uint_len(affected_rows) + types.uint_len(last_insert_id)
 
-        if types.Capabilities.CLIENT_PROTOCOL_41 in self.capabilities:
+        if Capabilities.CLIENT_PROTOCOL_41 in self.capabilities:
             data += types.uint_2(self.status_flags | flags)
             data += types.uint_2(warnings)
-        elif types.Capabilities.CLIENT_TRANSACTIONS in self.capabilities:
+        elif Capabilities.CLIENT_TRANSACTIONS in self.capabilities:
             data += types.uint_2(self.status_flags | flags)
 
         return data
@@ -448,7 +539,7 @@ class Connection:
         """https://dev.mysql.com/doc/internals/en/packet-EOF_Packet.html"""
         data = types.uint_1(0xFE)
 
-        if types.Capabilities.CLIENT_PROTOCOL_41 in self.capabilities:
+        if Capabilities.CLIENT_PROTOCOL_41 in self.capabilities:
             data += types.uint_2(warnings)
             data += types.uint_2(self.status_flags | flags)
 
@@ -473,7 +564,7 @@ class Connection:
         """https://dev.mysql.com/doc/internals/en/packet-ERR_Packet.html"""
         data = types.uint_1(0xFF) + types.uint_2(code)
 
-        if types.Capabilities.CLIENT_PROTOCOL_41 in self.capabilities:
+        if Capabilities.CLIENT_PROTOCOL_41 in self.capabilities:
             data += types.str_fixed(1, b"#")
             data += types.str_fixed(5, get_sqlstate(code))
 
@@ -521,29 +612,26 @@ class Connection:
     def handshake_response_41(self, data):
         """https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::HandshakeResponse41"""
         r = io.BytesIO(data)
-        self.client_capabilities = types.Capabilities(types.read_uint_4(r))
+        self.client_capabilities = Capabilities(types.read_uint_4(r))
         self.capabilities = self.server_capabilities & self.client_capabilities
         self.max_packet_size = types.read_uint_4(r)
         self.admin.client_character_set = Collation(types.read_uint_1(r)).charset
         types.read_str_fixed(r, 23)
         self.admin.username = types.read_str_null(r).decode()
 
-        if (
-            types.Capabilities.CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA
-            in self.capabilities
-        ):
+        if Capabilities.CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA in self.capabilities:
             self.auth_response = types.read_str_len(r).decode()
         else:
             l_auth_response = types.read_uint_1(r)
             self.auth_response = types.read_str_fixed(r, l_auth_response).decode()
 
-        if types.Capabilities.CLIENT_CONNECT_WITH_DB in self.capabilities:
+        if Capabilities.CLIENT_CONNECT_WITH_DB in self.capabilities:
             self.admin.database = types.read_str_null(r).decode()
 
-        if types.Capabilities.CLIENT_PLUGIN_AUTH in self.capabilities:
+        if Capabilities.CLIENT_PLUGIN_AUTH in self.capabilities:
             self.client_plugin_name = types.read_str_null(r).decode()
 
-        if types.Capabilities.CLIENT_CONNECT_ATTRS in self.capabilities:
+        if Capabilities.CLIENT_CONNECT_ATTRS in self.capabilities:
             total_l = types.read_uint_len(r)
 
             while total_l > 0:
@@ -554,7 +642,7 @@ class Connection:
                 item_l = len(types.str_len(key) + types.str_len(value))
                 total_l -= item_l
 
-        if types.Capabilities.CLIENT_ZSTD_COMPRESSION_ALGORITHM in self.capabilities:
+        if Capabilities.CLIENT_ZSTD_COMPRESSION_ALGORITHM in self.capabilities:
             self.zstd_compression_level = types.read_uint_1(r)
 
     def handshake_v10(self):
@@ -576,13 +664,13 @@ class Connection:
         )
 
     def deprecate_eof(self):
-        return types.Capabilities.CLIENT_DEPRECATE_EOF in self.capabilities
+        return Capabilities.CLIENT_DEPRECATE_EOF in self.capabilities
 
     def text_resultset(self, result_set):
         """https://dev.mysql.com/doc/internals/en/com-query-response.html#packet-ProtocolText::Resultset"""
         column_count = b""
 
-        if types.Capabilities.CLIENT_OPTIONAL_RESULTSET_METADATA in self.capabilities:
+        if Capabilities.CLIENT_OPTIONAL_RESULTSET_METADATA in self.capabilities:
             column_count += types.uint_1(
                 types.ResultsetMetadata.RESULTSET_METADATA_FULL
             )

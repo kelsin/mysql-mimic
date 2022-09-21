@@ -5,12 +5,13 @@ class Session:
     This should be implemented by applications.
     """
 
-    async def query(self, sql):  # pylint: disable=unused-argument
+    async def query(self, sql, attrs):  # pylint: disable=unused-argument
         """
         Process a SQL query.
 
         Args:
             sql (str): SQL statement from client
+            attrs (dict): Arbitrary query attributes set by client
         Returns:
             One of:
             - tuple(rows, column_names), where "rows" is a sequence of sequences
@@ -57,3 +58,8 @@ class Session:
             list[mysql_mimic.results.Column|dict]: columns
         """
         return []
+
+    async def rollback(self):
+        """
+        Roll back the current transaction, canceling its changes.
+        """

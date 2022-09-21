@@ -26,6 +26,7 @@ class Admin:
                 |(SYSTEM_USER)
                 |(SESSION_USER)
                 |(VERSION)
+                |(DATABASE)
             )\(\)
             (?=(?:[^"'`]*["'`][^"'`]*["'`])*[^"'`]*$)
         """,
@@ -43,7 +44,8 @@ class Admin:
 
     # Regex for determining if a statement is an "admin statement"
     REGEX_CMD = re.compile(
-        r"^\s*(?P<cmd>(SET)|(SHOW))\s(?P<this>.*)$", re.IGNORECASE | re.VERBOSE
+        r"^\s*(?P<cmd>(SET\s)|(SHOW\s)|(ROLLBACK))(?P<this>.*)$",
+        re.IGNORECASE | re.VERBOSE,
     )
 
     # Regex for parsing a "SET VARIABLES" statement
@@ -145,6 +147,9 @@ class Admin:
             "character_set_server": CharacterSet.utf8mb4.name,
             "collation_server": Collation.utf8mb4_general_ci.name,
             "collation_database": Collation.utf8mb4_general_ci.name,
+            "transaction_isolation": "READ-COMMITTED",
+            "sql_mode": "",
+            "lower_case_table_names": 0,
         }
         self.variables = dict(**self.variable_defaults)
 
@@ -177,9 +182,11 @@ class Admin:
         if func == "connection_id":
             return str(self.connection_id)
         if func in {"user", "session_user", "system_user"}:
-            return f"'{self.username}'"
+            return f"'{self.username}'" if self.username else "NULL"
         if func == "version":
             return f"'{self.mysql_version}'"
+        if func == "database":
+            return f"'{self.database}'" if self.database else "NULL"
         raise MysqlError(f"Failed to parse system information function: {func}")
 
     def _replace_session_var(self, matchobj):
@@ -193,13 +200,16 @@ class Admin:
         if not m:
             return None
 
-        cmd = m.group("cmd").lower()
-        this = m.group("this").lower()
+        cmd = m.group("cmd").strip().lower()
+        this = m.group("this").strip().lower()
 
         if cmd == "set":
             return await self._parse_set(this)
         if cmd == "show":
             return await self._parse_show(this)
+        if cmd == "rollback":
+            await self.session.rollback()
+            return ResultSet([], [])
         raise MysqlError("Failed to parse command", ErrorCode.PARSE_ERROR)
 
     async def _parse_set(self, this):

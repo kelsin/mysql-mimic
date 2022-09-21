@@ -60,6 +60,9 @@ class TestAdmin(unittest.IsolatedAsyncioTestCase):
                     "character_set_server": "utf8mb4",
                     "collation_server": "utf8mb4_general_ci",
                     "collation_database": "utf8mb4_general_ci",
+                    "lower_case_table_names": 0,
+                    "sql_mode": "",
+                    "transaction_isolation": "READ-COMMITTED",
                 },
             ),
             (
