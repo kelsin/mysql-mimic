@@ -14,9 +14,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
 
 from mysql_mimic import MysqlServer, Session
-from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 from mysql_mimic.results import ResultColumn, ResultSet
-from mysql_mimic.types import Capabilities, ColumnType
+from mysql_mimic.types import ColumnType
 from mysql_mimic.charset import CharacterSet
 
 
@@ -75,12 +74,6 @@ class TestIntegration(unittest.IsolatedAsyncioTestCase):
         self.port = get_free_port()
         self.server = MysqlServer(
             session_factory=lambda: self.session,
-            capabilities=(
-                DEFAULT_SERVER_CAPABILITIES
-                | Capabilities.CLIENT_CONNECT_WITH_DB
-                | Capabilities.CLIENT_CONNECT_ATTRS
-                | Capabilities.CLIENT_QUERY_ATTRIBUTES
-            ),
             port=self.port,
             conn_kwargs={"force_cursor": True},
         )

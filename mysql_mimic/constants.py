@@ -5,4 +5,5 @@ DEFAULT_SERVER_CAPABILITIES = (
     | Capabilities.CLIENT_DEPRECATE_EOF
     | Capabilities.CLIENT_CONNECT_WITH_DB
     | Capabilities.CLIENT_QUERY_ATTRIBUTES
+    | Capabilities.CLIENT_CONNECT_ATTRS
 )
