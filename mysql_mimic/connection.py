@@ -34,7 +34,6 @@ class Connection:
         connection_id,
         session,
         server_capabilities=DEFAULT_SERVER_CAPABILITIES,
-        force_cursor=False,
     ):
         """
         Client connection.
@@ -44,9 +43,6 @@ class Connection:
             connection_id (int): 32 bit connection ID
             session (mysql_mimic.session.Session): session
             server_capabilities (int): server capability flags
-            force_cursor (bool): If True, always send a cursor when executing prepared statements,
-                even if the client doesn't explicitly request it. This is here to get around a bug
-                in mysql-connector-python, which doesn't properly set cursor flags.
         """
         self.stream = stream
         self.session = session
@@ -62,7 +58,6 @@ class Connection:
         self.client_plugin_name = None
         self.client_connect_attrs = {}
         self.zstd_compression_level = 0
-        self.force_cursor = force_cursor
 
         self.prepared_stmt_seq = seq(self._MAX_PREPARED_STMT_ID)
         self.prepared_stmts = {}
@@ -251,9 +246,9 @@ class Connection:
         r = io.BytesIO(data)
         stmt_id = types.read_uint_4(r)
         stmt = self.get_stmt(stmt_id)
-        use_cursor = self.read_cursor_flags(r)
+        use_cursor, param_count_available = self.read_cursor_flags(r)
         types.read_uint_4(r)  # iteration count. Always 1.
-        sql, query_attrs = self.interpolate_params(r, stmt)
+        sql, query_attrs = self.interpolate_params(r, stmt, param_count_available)
         stmt.param_buffers = None
 
         result_set = await self.query(sql, query_attrs)
@@ -282,7 +277,7 @@ class Connection:
             )
         else:
             if not self.deprecate_eof():
-                self.eof()
+                await self.stream.write(self.eof())
             for row in rows:
                 await self.stream.write(row)
             await self.stream.write(self.ok_or_eof())
@@ -338,39 +333,40 @@ class Connection:
         self.prepared_stmts.pop(stmt_id, None)
 
     def read_cursor_flags(self, reader):
-        flags = types.read_uint_1(reader)
-        if (
-            self.force_cursor
-            or flags == types.ComStmtExecuteFlags.CURSOR_TYPE_READ_ONLY
-        ):
-            return True
-        if flags == types.ComStmtExecuteFlags.CURSOR_TYPE_NO_CURSOR:
-            return False
+        flags = types.ComStmtExecuteFlags(types.read_uint_1(reader))
+        param_count_available = (
+            types.ComStmtExecuteFlags.PARAMETER_COUNT_AVAILABLE in flags
+        )
+
+        if types.ComStmtExecuteFlags.CURSOR_TYPE_READ_ONLY in flags:
+            return True, param_count_available
+        if types.ComStmtExecuteFlags.CURSOR_TYPE_NO_CURSOR in flags:
+            return False, param_count_available
         raise MysqlError(
             f"Unsupported cursor flags: {flags}", ErrorCode.NOT_SUPPORTED_YET
         )
 
-    def interpolate_params(self, reader, stmt):
+    def interpolate_params(self, reader, stmt, param_count_available):
         sql = stmt.sql
+        query_attrs = {}
+        parameter_count = stmt.num_params
 
-        # If CLIENT_QUERY_ATTRIBUTES is set, the parameter count is in the packet, and it's
-        # the sum of statement parameters AND query attributes.
-        # Mysql-connector doesn't set this count if there are no statement parameters nor query attributes.
-        if Capabilities.CLIENT_QUERY_ATTRIBUTES in self.capabilities and types.peek(
-            reader
+        if stmt.num_params > 0 or (
+            Capabilities.CLIENT_QUERY_ATTRIBUTES in self.capabilities
+            and param_count_available
         ):
-            parameter_count = types.read_uint_len(reader)
-        else:
-            parameter_count = stmt.num_params
+            if Capabilities.CLIENT_QUERY_ATTRIBUTES in self.capabilities:
+                parameter_count = types.read_uint_len(reader)
 
-        # When there are query attributes, they are combined with statement parameters.
-        # The statement parameters will be first, query attributes second.
-        params = self.read_params(reader, parameter_count, stmt.param_buffers)
+        if parameter_count > 0:
+            # When there are query attributes, they are combined with statement parameters.
+            # The statement parameters will be first, query attributes second.
+            params = self.read_params(reader, parameter_count, stmt.param_buffers)
 
-        for _, value in params[: stmt.num_params]:
-            sql = REGEX_PARAM.sub(self.encode_param_as_sql(value), sql, 1)
+            for _, value in params[: stmt.num_params]:
+                sql = REGEX_PARAM.sub(self.encode_param_as_sql(value), sql, 1)
 
-        query_attrs = dict(params[stmt.num_params :])
+            query_attrs = dict(params[stmt.num_params :])
 
         return sql, query_attrs
 
