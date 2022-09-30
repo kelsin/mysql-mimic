@@ -172,6 +172,7 @@ class ComStmtExecuteFlags(IntFlag):
     CURSOR_TYPE_READ_ONLY = 0x01
     CURSOR_TYPE_FOR_UPDATE = 0x02
     CURSOR_TYPE_SCROLLABLE = 0x04
+    PARAMETER_COUNT_AVAILABLE = 0x08
 
 
 def uint_len(i):
@@ -325,10 +326,3 @@ def read_str_len(reader):
 
 def read_str_rest(reader):
     return reader.read()
-
-
-def peek(reader, num_bytes=1):
-    pos = reader.tell()
-    val = reader.read(num_bytes)
-    reader.seek(pos)
-    return val

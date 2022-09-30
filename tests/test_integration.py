@@ -75,7 +75,6 @@ class TestIntegration(unittest.IsolatedAsyncioTestCase):
         self.server = MysqlServer(
             session_factory=lambda: self.session,
             port=self.port,
-            conn_kwargs={"force_cursor": True},
         )
 
         await self.server.start_server()
