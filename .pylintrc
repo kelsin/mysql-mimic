@@ -9,7 +9,8 @@ disable=
     too-many-instance-attributes,
     too-many-public-methods,
     too-many-branches,
-    too-many-return-statements
+    too-many-return-statements,
+    unused-argument
 
 [FORMAT]
 
