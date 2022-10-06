@@ -1,7 +1,7 @@
 import struct
 from dataclasses import dataclass
 from datetime import datetime, date, timedelta
-from typing import Iterable, Sequence, Optional, Callable, Any
+from typing import Iterable, Sequence, Optional
 
 from mysql_mimic.errors import MysqlError
 from mysql_mimic.types import ColumnType, str_len, uint_1, uint_2, uint_4
@@ -23,12 +23,12 @@ class ResultColumn:
     """
 
     def __init__(
-            self,
-            name: str,
-            type: ColumnType,
-            character_set: CharacterSet = CharacterSet.utf8mb4,
-            text_encoder: Optional[Callable[[Any, 'ResultColumn'], bytes]] = None,
-            binary_encoder: Optional[Callable[[Any, 'ResultColumn'], bytes]] = None,
+        self,
+        name,
+        type,
+        character_set=CharacterSet.utf8mb4,
+        text_encoder=None,
+        binary_encoder=None,
     ):
         self.name = name
         self.type = type

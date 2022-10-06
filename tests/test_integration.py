@@ -191,7 +191,7 @@ class TestIntegration(unittest.IsolatedAsyncioTestCase):
                 (([(1, 1, None)], ["a", "b", "c"]), [{"a": 1, "b": 1, "c": None}]),
                 (([[None], [1]], ["b"]), [{"b": None}, {"b": 1}]),
                 *explicit_types,
-                *custom_encoders
+                *custom_encoders,
             ]:
                 self.session.return_value = rv
                 result = await query("SELECT b FROM a")
