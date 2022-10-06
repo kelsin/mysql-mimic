@@ -268,7 +268,7 @@ class Connection:
                 )
             )
 
-        rows = (self.binary_resultrow(r) for r in result_set.rows)
+        rows = (self.binary_resultrow(r, result_set.columns) for r in result_set.rows)
 
         if use_cursor:
             stmt.cursor = rows
@@ -707,7 +707,7 @@ class Connection:
 
         return packets
 
-    def binary_resultrow(self, row):
+    def binary_resultrow(self, row, columns):
         """https://dev.mysql.com/doc/internals/en/binary-protocol-resultset-row.html"""
         column_count = len(row)
 
@@ -718,7 +718,7 @@ class Connection:
             if val is None:
                 null_bitmap.flip(i)
             else:
-                values.append(binary_encode(val))
+                values.append(binary_encode(val, columns[i].type))
 
         values_data = b"".join(values)
 

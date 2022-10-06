@@ -88,19 +88,19 @@ def _find_first_non_null_value(idx, rows):
     return None
 
 
-def _binary_encode_bool(val):
+def _binary_encode_bool(val, type=None):
     return uint_1(int(val))
 
 
-def _binary_encode_str(val):
+def _binary_encode_str(val, type=None):
     return str_len(str(val).encode("utf-8"))
 
 
-def _binary_encode_bytes(val):
+def _binary_encode_bytes(val, type=None):
     return str_len(val)
 
 
-def _binary_encode_date(val):
+def _binary_encode_date(val, type=None):
     year = val.year
     month = val.month
     day = val.day
@@ -143,15 +143,18 @@ def _binary_encode_date(val):
     )
 
 
-def _binary_encode_int(val):
-    return struct.pack("<q", val)
+def _binary_encode_int(val, type=None):
+    format = "q"
+    if type == ColumnType.LONG:
+        format = "l"
+    return struct.pack(f"<{format}", val)
 
 
-def _binary_encode_float(val):
+def _binary_encode_float(val, type=None):
     return struct.pack("<d", val)
 
 
-def _binary_encode_timedelta(val):
+def _binary_encode_timedelta(val, type=None):
     days = abs(val.days)
     hours, remainder = divmod(abs(val.seconds), 3600)
     minutes, seconds = divmod(remainder, 60)
@@ -188,7 +191,7 @@ def _binary_encode_timedelta(val):
 # bool is a subclass of int
 # datetime is a subclass of date
 _ENCODERS = {
-    # python type: (mysql type, text encoder, binary encoder),
+    # python type: (inferred mysql type, text encoder, binary encoder),
     bool: (ColumnType.TINY, lambda v: str(int(v)), _binary_encode_bool),
     datetime: (ColumnType.DATETIME, str, _binary_encode_date),
     str: (ColumnType.STRING, lambda v: v, _binary_encode_str),
@@ -200,10 +203,10 @@ _ENCODERS = {
 }
 
 
-def binary_encode(val):
+def binary_encode(val, type):
     for py_type, (_, _, encoder) in _ENCODERS.items():
         if isinstance(val, py_type):
-            return encoder(val)
+            return encoder(val, type)
     return _binary_encode_str(val)
 
 
