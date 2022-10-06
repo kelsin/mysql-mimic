@@ -25,7 +25,7 @@ class ResultColumn:
     def __init__(
         self,
         name,
-        type,
+        type,  # pylint: disable=redefined-builtin
         character_set=CharacterSet.utf8mb4,
         text_encoder=None,
         binary_encoder=None,
