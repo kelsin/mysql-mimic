@@ -6,12 +6,7 @@ from typing import Optional, Dict, Iterable
 
 from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 from mysql_mimic.errors import ErrorCode, MysqlError, get_sqlstate
-from mysql_mimic.results import (
-    ensure_result_set,
-    text_encode,
-    binary_encode,
-    NullBitmap,
-)
+from mysql_mimic.results import ensure_result_set, NullBitmap
 from mysql_mimic.charset import CharacterSet, Collation
 from mysql_mimic import types
 from mysql_mimic.types import Capabilities
@@ -268,7 +263,7 @@ class Connection:
                 )
             )
 
-        rows = (self.binary_resultrow(r) for r in result_set.rows)
+        rows = (self.binary_resultrow(r, result_set.columns) for r in result_set.rows)
 
         if use_cursor:
             stmt.cursor = rows
@@ -697,9 +692,7 @@ class Connection:
                 if value is None:
                     row_data.append(b"\xfb")
                 else:
-                    text = text_encode(value)
-                    if isinstance(text, str):
-                        text = text.encode(self.server_character_set.codec)
+                    text = column.text_encode(value)
                     row_data.append(types.str_len(text))
             packets.append(b"".join(row_data))
 
@@ -707,18 +700,18 @@ class Connection:
 
         return packets
 
-    def binary_resultrow(self, row):
+    def binary_resultrow(self, row, columns):
         """https://dev.mysql.com/doc/internals/en/binary-protocol-resultset-row.html"""
         column_count = len(row)
 
         null_bitmap = NullBitmap.new(column_count, offset=2)
 
         values = []
-        for i, val in enumerate(row):
+        for i, (val, col) in enumerate(zip(row, columns)):
             if val is None:
                 null_bitmap.flip(i)
             else:
-                values.append(binary_encode(val))
+                values.append(col.binary_encode(val))
 
         values_data = b"".join(values)
 

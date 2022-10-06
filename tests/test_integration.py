@@ -121,6 +121,51 @@ class TestIntegration(unittest.IsolatedAsyncioTestCase):
             return cursor.mappings().all()
 
     async def test_query(self):
+        explicit_types = [
+            (
+                ResultSet(
+                    rows=[(input_,)],
+                    columns=[
+                        ResultColumn(
+                            name="b",
+                            character_set=CharacterSet.utf8mb4,
+                            type=type_,
+                        )
+                    ],
+                ),
+                [{"b": output}],
+            )
+            for input_, type_, output in [
+                ("♥".encode("utf-8"), ColumnType.VARCHAR, "♥"),
+                ("♥".encode("utf-8"), ColumnType.BLOB, "♥"),
+                (b"\xe2\x99\xa5", ColumnType.BLOB, "♥"),
+                (1, ColumnType.TINY, True),
+                (2, ColumnType.SHORT, 2),
+                (2, ColumnType.INT24, 2),
+                (2, ColumnType.LONG, 2),
+                (2, ColumnType.LONGLONG, 2),
+                (1.0, ColumnType.FLOAT, 1.0),
+                (1.0, ColumnType.DOUBLE, 1.0),
+            ]
+        ]
+        custom_encoders = [
+            (
+                ResultSet(
+                    rows=[("hello",)],
+                    columns=[
+                        ResultColumn(
+                            name="b",
+                            character_set=CharacterSet.utf8mb4,
+                            type=ColumnType.VARCHAR,
+                            text_encoder=lambda col, val: b"world",
+                            binary_encoder=lambda col, val: b"\x05world",
+                        )
+                    ],
+                ),
+                [{"b": "world"}],
+            )
+        ]
+
         for query in [
             self.mysql_query,
             partial(self.mysql_query, cursor_class=PreparedDictCursor),
@@ -140,37 +185,13 @@ class TestIntegration(unittest.IsolatedAsyncioTestCase):
                     [{"b": datetime(2021, 1, 1, 1, 1, 1)}],
                 ),
                 (([(timedelta(seconds=60),)], ("b",)), [{"b": timedelta(seconds=60)}]),
-                (
-                    ResultSet(
-                        rows=[("♥".encode("utf-8"),)],
-                        columns=[
-                            ResultColumn(
-                                name="b",
-                                character_set=CharacterSet.utf8mb4,
-                                type=ColumnType.VARCHAR,
-                            )
-                        ],
-                    ),
-                    [{"b": "♥"}],
-                ),
-                (
-                    (
-                        [("♥".encode("utf-8"),)],
-                        [
-                            ResultColumn(
-                                name="b",
-                                character_set=CharacterSet.utf8mb4,
-                                type=ColumnType.VARCHAR,
-                            )
-                        ],
-                    ),
-                    [{"b": "♥"}],
-                ),
                 (([(None,)], ["b"]), [{"b": None}]),
                 (([(None, 1, 1)], ["a", "b", "c"]), [{"a": None, "b": 1, "c": 1}]),
                 (([(1, None, 1)], ["a", "b", "c"]), [{"a": 1, "b": None, "c": 1}]),
                 (([(1, 1, None)], ["a", "b", "c"]), [{"a": 1, "b": 1, "c": None}]),
                 (([[None], [1]], ["b"]), [{"b": None}, {"b": 1}]),
+                *explicit_types,
+                *custom_encoders
             ]:
                 self.session.return_value = rv
                 result = await query("SELECT b FROM a")

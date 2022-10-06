@@ -1,20 +1,46 @@
 import struct
 from dataclasses import dataclass
 from datetime import datetime, date, timedelta
-from typing import Iterable, Sequence, Optional
+from typing import Iterable, Sequence, Optional, Callable, Any
 
 from mysql_mimic.errors import MysqlError
 from mysql_mimic.types import ColumnType, str_len, uint_1, uint_2, uint_4
 from mysql_mimic.charset import CharacterSet
 
 
-@dataclass
 class ResultColumn:
-    """Column data for a result set"""
+    """
+    Column data for a result set
 
-    name: str
-    type: ColumnType
-    character_set: CharacterSet = CharacterSet.utf8mb4
+    Args:
+        name (str): column name
+        type (ColumnType): column type
+        character_set (CharacterSet): column character set. Only relevant for string columns.
+        text_encoder ((Any, ResultColumn) -> bytes):
+            Optionally override the function used to encode values for MySQL's text protocol
+        binary_encoder ((Any, ResultColumn) -> bytes):
+            Optionally override the function used to encode values for MySQL's binary protocol
+    """
+
+    def __init__(
+            self,
+            name: str,
+            type: ColumnType,
+            character_set: CharacterSet = CharacterSet.utf8mb4,
+            text_encoder: Optional[Callable[[Any, 'ResultColumn'], bytes]] = None,
+            binary_encoder: Optional[Callable[[Any, 'ResultColumn'], bytes]] = None,
+    ):
+        self.name = name
+        self.type = type
+        self.character_set = character_set
+        self.text_encoder = text_encoder or _TEXT_ENCODERS.get(type, _unsupported)
+        self.binary_encoder = binary_encoder or _BINARY_ENCODERS.get(type, _unsupported)
+
+    def text_encode(self, val):
+        return self.text_encoder(self, val)
+
+    def binary_encode(self, val):
+        return self.binary_encoder(self, val)
 
 
 @dataclass
@@ -88,19 +114,24 @@ def _find_first_non_null_value(idx, rows):
     return None
 
 
-def _binary_encode_bool(val):
-    return uint_1(int(val))
+def _binary_encode_tiny(col, val):
+    return uint_1(int(bool(val)))
 
 
-def _binary_encode_str(val):
-    return str_len(str(val).encode("utf-8"))
+def _binary_encode_str(col, val):
+    if not isinstance(val, bytes):
+        val = str(val)
 
+    if isinstance(val, str):
+        val = val.encode(col.character_set.codec)
 
-def _binary_encode_bytes(val):
     return str_len(val)
 
 
-def _binary_encode_date(val):
+def _binary_encode_date(col, val):
+    if isinstance(val, (float, int)):
+        val = datetime.fromtimestamp(val)
+
     year = val.year
     month = val.month
     day = val.day
@@ -143,15 +174,31 @@ def _binary_encode_date(val):
     )
 
 
-def _binary_encode_int(val):
+def _binary_encode_short(col, val):
+    return struct.pack("<h", val)
+
+
+def _binary_encode_int(col, val):
+    return struct.pack("<i", val)
+
+
+def _binary_encode_long(col, val):
+    return struct.pack("<l", val)
+
+
+def _binary_encode_longlong(col, val):
     return struct.pack("<q", val)
 
 
-def _binary_encode_float(val):
+def _binary_encode_float(col, val):
+    return struct.pack("<f", val)
+
+
+def _binary_encode_double(col, val):
     return struct.pack("<d", val)
 
 
-def _binary_encode_timedelta(val):
+def _binary_encode_timedelta(col, val):
     days = abs(val.days)
     hours, remainder = divmod(abs(val.seconds), 3600)
     minutes, seconds = divmod(remainder, 60)
@@ -184,38 +231,120 @@ def _binary_encode_timedelta(val):
     )
 
 
+def _text_encode_str(col, val):
+    if not isinstance(val, bytes):
+        val = str(val)
+
+    if isinstance(val, str):
+        val = val.encode(col.character_set.codec)
+
+    return val
+
+
+def _text_encode_tiny(col, val):
+    return _text_encode_str(col, int(val))
+
+
+def _unsupported(col, val):
+    raise MysqlError(f"Unsupported column type: {col.type}")
+
+
+def _noop(col, val):
+    return val
+
+
 # Order matters
 # bool is a subclass of int
 # datetime is a subclass of date
-_ENCODERS = {
-    # python type: (mysql type, text encoder, binary encoder),
-    bool: (ColumnType.TINY, lambda v: str(int(v)), _binary_encode_bool),
-    datetime: (ColumnType.DATETIME, str, _binary_encode_date),
-    str: (ColumnType.STRING, lambda v: v, _binary_encode_str),
-    bytes: (ColumnType.BLOB, lambda v: v, _binary_encode_bytes),
-    int: (ColumnType.LONGLONG, str, _binary_encode_int),
-    float: (ColumnType.DOUBLE, str, _binary_encode_float),
-    date: (ColumnType.DATE, str, _binary_encode_date),
-    timedelta: (ColumnType.TIME, str, _binary_encode_timedelta),
+_PY_TO_MYSQL_TYPE = {
+    bool: ColumnType.TINY,
+    datetime: ColumnType.DATETIME,
+    str: ColumnType.STRING,
+    bytes: ColumnType.BLOB,
+    int: ColumnType.LONGLONG,
+    float: ColumnType.DOUBLE,
+    date: ColumnType.DATE,
+    timedelta: ColumnType.TIME,
 }
 
 
-def binary_encode(val):
-    for py_type, (_, _, encoder) in _ENCODERS.items():
-        if isinstance(val, py_type):
-            return encoder(val)
-    return _binary_encode_str(val)
+_TEXT_ENCODERS = {
+    ColumnType.DECIMAL: _text_encode_str,
+    ColumnType.TINY: _text_encode_tiny,
+    ColumnType.SHORT: _text_encode_str,
+    ColumnType.LONG: _text_encode_str,
+    ColumnType.FLOAT: _text_encode_str,
+    ColumnType.DOUBLE: _text_encode_str,
+    ColumnType.NULL: _unsupported,
+    ColumnType.TIMESTAMP: _text_encode_str,
+    ColumnType.LONGLONG: _text_encode_str,
+    ColumnType.INT24: _text_encode_str,
+    ColumnType.DATE: _text_encode_str,
+    ColumnType.TIME: _text_encode_str,
+    ColumnType.DATETIME: _text_encode_str,
+    ColumnType.YEAR: _text_encode_str,
+    ColumnType.NEWDATE: _text_encode_str,
+    ColumnType.VARCHAR: _text_encode_str,
+    ColumnType.BIT: _text_encode_str,
+    ColumnType.TIMESTAMP2: _unsupported,
+    ColumnType.DATETIME2: _unsupported,
+    ColumnType.TIME2: _unsupported,
+    ColumnType.TYPED_ARRAY: _unsupported,
+    ColumnType.INVALID: _unsupported,
+    ColumnType.BOOL: _binary_encode_tiny,
+    ColumnType.JSON: _text_encode_str,
+    ColumnType.NEWDECIMAL: _text_encode_str,
+    ColumnType.ENUM: _text_encode_str,
+    ColumnType.SET: _text_encode_str,
+    ColumnType.TINY_BLOB: _text_encode_str,
+    ColumnType.MEDIUM_BLOB: _text_encode_str,
+    ColumnType.LONG_BLOB: _text_encode_str,
+    ColumnType.BLOB: _text_encode_str,
+    ColumnType.VAR_STRING: _text_encode_str,
+    ColumnType.STRING: _text_encode_str,
+    ColumnType.GEOMETRY: _text_encode_str,
+}
 
-
-def text_encode(val):
-    for py_type, (_, encoder, _) in _ENCODERS.items():
-        if isinstance(val, py_type):
-            return encoder(val)
-    return str(val)
+_BINARY_ENCODERS = {
+    ColumnType.DECIMAL: _binary_encode_str,
+    ColumnType.TINY: _binary_encode_tiny,
+    ColumnType.SHORT: _binary_encode_short,
+    ColumnType.LONG: _binary_encode_long,
+    ColumnType.FLOAT: _binary_encode_float,
+    ColumnType.DOUBLE: _binary_encode_double,
+    ColumnType.NULL: _unsupported,
+    ColumnType.TIMESTAMP: _binary_encode_date,
+    ColumnType.LONGLONG: _binary_encode_longlong,
+    ColumnType.INT24: _binary_encode_long,
+    ColumnType.DATE: _binary_encode_date,
+    ColumnType.TIME: _binary_encode_timedelta,
+    ColumnType.DATETIME: _binary_encode_date,
+    ColumnType.YEAR: _binary_encode_short,
+    ColumnType.NEWDATE: _unsupported,
+    ColumnType.VARCHAR: _binary_encode_str,
+    ColumnType.BIT: _binary_encode_str,
+    ColumnType.TIMESTAMP2: _unsupported,
+    ColumnType.DATETIME2: _unsupported,
+    ColumnType.TIME2: _unsupported,
+    ColumnType.TYPED_ARRAY: _unsupported,
+    ColumnType.INVALID: _unsupported,
+    ColumnType.BOOL: _binary_encode_tiny,
+    ColumnType.JSON: _binary_encode_str,
+    ColumnType.NEWDECIMAL: _binary_encode_str,
+    ColumnType.ENUM: _binary_encode_str,
+    ColumnType.SET: _binary_encode_str,
+    ColumnType.TINY_BLOB: _binary_encode_str,
+    ColumnType.MEDIUM_BLOB: _binary_encode_str,
+    ColumnType.LONG_BLOB: _binary_encode_str,
+    ColumnType.BLOB: _binary_encode_str,
+    ColumnType.VAR_STRING: _binary_encode_str,
+    ColumnType.STRING: _binary_encode_str,
+    ColumnType.GEOMETRY: _binary_encode_str,
+}
 
 
 def infer_type(val):
-    for py_type, (my_type, _, _) in _ENCODERS.items():
+    for py_type, my_type in _PY_TO_MYSQL_TYPE.items():
         if isinstance(val, py_type):
             return my_type
     return ColumnType.VARCHAR
