@@ -23,6 +23,7 @@ setup(
             "coverage",
             "pylint",
             "pytest",
+            "pytest-asyncio",
             "sphinx",
             "sqlalchemy",
             "twine",
