@@ -106,7 +106,9 @@ async def test_parse_show_index(admin: Admin) -> None:
         ),
     ],
 )
-async def test_parse_show_variables(admin: Admin, cmd: str, expected: Dict[str, Any]) -> None:
+async def test_parse_show_variables(
+    admin: Admin, cmd: str, expected: Dict[str, Any]
+) -> None:
     result = await admin.parse(cmd)
     assert isinstance(result, ResultSet)
     rows = {r[0]: r[1] for r in result.rows}

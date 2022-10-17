@@ -1,6 +1,5 @@
 import sys
 from collections.abc import Iterator
-from typing import Literal
 
 
 class seq(Iterator):
@@ -21,12 +20,10 @@ class seq(Iterator):
         self.value = 0
 
 
-def xor(
-    a: bytes, b: bytes, byteorder: Literal["little", "big"] = sys.byteorder
-) -> bytes:
+def xor(a: bytes, b: bytes) -> bytes:
     # Fast XOR implementation, according to https://stackoverflow.com/questions/29408173/byte-operations-xor-in-python
     a, b = a[: len(b)], b[: len(a)]
-    int_b = int.from_bytes(b, byteorder)
-    int_a = int.from_bytes(a, byteorder)
+    int_b = int.from_bytes(b, sys.byteorder)
+    int_a = int.from_bytes(a, sys.byteorder)
     int_enc = int_b ^ int_a
-    return int_enc.to_bytes(len(b), byteorder)
+    return int_enc.to_bytes(len(b), sys.byteorder)
