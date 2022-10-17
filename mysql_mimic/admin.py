@@ -1,6 +1,6 @@
 import re
 
-from mysql_mimic.charset import CharacterSet, Collation
+from mysql_mimic.charset import CharacterSet
 from mysql_mimic.errors import MysqlError, ErrorCode
 from mysql_mimic.results import ResultColumn, ResultSet, Column
 from mysql_mimic.types import ColumnType
@@ -14,20 +14,25 @@ class Admin:
     Args:
         connection_id (int): connection ID
         session (mysql_mimic.session.Session): session
-        variable_defaults (dict): default values for session variables
+        variables (mysql_mimic.variables.SystemVariables): system variables
     """
 
     # Regex for finding "information functions" to replace in SQL statements
     REGEX_INFO_FUNC = re.compile(
         r"""
-            (?P<func>
+            (
+              ((?P<func>
                 (CONNECTION_ID)
                 |(USER)
+                |(CURRENT_USER)
                 |(SYSTEM_USER)
                 |(SESSION_USER)
                 |(VERSION)
                 |(DATABASE)
-            )\(\)
+              )\(\))
+            |
+              (?P<current_user>CURRENT_USER)
+            )
             (?=(?:[^"'`]*["'`][^"'`]*["'`])*[^"'`]*$)
         """,
         re.IGNORECASE | re.VERBOSE,
@@ -134,65 +139,35 @@ class Admin:
         re.IGNORECASE | re.VERBOSE,
     )
 
-    def __init__(self, connection_id, session, variable_defaults=None):
+    def __init__(self, connection_id, session, variables):
         self.connection_id = connection_id
         self.session = session
         self.database = None
         self.username = None
-        self.variable_defaults = variable_defaults or {
-            "version": "8.0.29",
-            "version_comment": "mysql-mimic",
-            "character_set_client": CharacterSet.utf8mb4.name,
-            "character_set_results": CharacterSet.utf8mb4.name,
-            "character_set_server": CharacterSet.utf8mb4.name,
-            "collation_server": Collation.utf8mb4_general_ci.name,
-            "collation_database": Collation.utf8mb4_general_ci.name,
-            "transaction_isolation": "READ-COMMITTED",
-            "sql_mode": "",
-            "lower_case_table_names": 0,
-        }
-        self.variables = dict(**self.variable_defaults)
-
-    @property
-    def server_character_set(self):
-        return CharacterSet[self.variables.get("character_set_results", "utf8mb4")]
-
-    @server_character_set.setter
-    def server_character_set(self, val):
-        self.variables["character_set_results"] = val.name
-
-    @property
-    def client_character_set(self):
-        return CharacterSet[self.variables.get("character_set_client", "utf8mb4")]
-
-    @client_character_set.setter
-    def client_character_set(self, val):
-        self.variables["character_set_client"] = val.name
-
-    @property
-    def mysql_version(self):
-        return self.variables["version"]
+        self.vars = variables
 
     def replace_variables(self, sql):
         sql = self.REGEX_INFO_FUNC.sub(self._replace_info_func, sql)
         return self.REGEX_SESSION_VAR.sub(self._replace_session_var, sql)
 
     def _replace_info_func(self, matchobj):
-        func = matchobj.group("func").lower()
+        func = (matchobj.group("func") or matchobj.group("current_user")).lower()
         if func == "connection_id":
             return str(self.connection_id)
         if func in {"user", "session_user", "system_user"}:
+            return f"'{self.vars.external_user}'" if self.vars.external_user else "NULL"
+        if func in {"current_user"}:
             return f"'{self.username}'" if self.username else "NULL"
         if func == "version":
-            return f"'{self.mysql_version}'"
+            return f"'{self.vars.mysql_version}'"
         if func == "database":
             return f"'{self.database}'" if self.database else "NULL"
         raise MysqlError(f"Failed to parse system information function: {func}")
 
     def _replace_session_var(self, matchobj):
         var = matchobj.group("var").lower()
-        if var in self.variables:
-            return f"'{self.variables[var]}'"
+        if var in self.vars:
+            return f"'{self.vars[var]}'"
         raise MysqlError(f"Unknown variable: {var}", ErrorCode.UNKNOWN_SYSTEM_VARIABLE)
 
     async def parse(self, sql):
@@ -235,7 +210,7 @@ class Admin:
         raise MysqlError("Unsupported SET command", ErrorCode.NOT_SUPPORTED_YET)
 
     async def _set_variable(self, key, val):
-        self.variables[key] = val
+        self.vars[key] = val
         await self.session.set(**{key: val})
 
     async def _parse_set_names(self, charset_name, collation_name):
@@ -263,7 +238,7 @@ class Admin:
         elif value_lower in {"false", "off"}:
             result = False
         elif value_lower in {"default", "null"}:
-            result = self.variable_defaults.get(var_name)
+            result = self.vars.defaults.get(var_name)
         elif value[0] == value[-1] == "'":
             result = value[1:-1]
         else:
@@ -382,7 +357,7 @@ class Admin:
     async def _parse_show_variables(
         self, global_, session, like
     ):  # pylint: disable=unused-argument
-        rows = list(self.variables.items())
+        rows = list(self.vars.items())
         rows = [(k, v) for k, v in rows if like.match(k)]
         return ResultSet(
             rows=rows,

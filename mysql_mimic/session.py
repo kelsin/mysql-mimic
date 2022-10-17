@@ -1,3 +1,6 @@
+from mysql_mimic.auth import User
+
+
 class Session:
     """
     Abstract client session.
@@ -33,11 +36,24 @@ class Session:
 
     async def init(self, connection):
         """
-        Initialize the session.
+        Called when connection phase is complete.
+
+        This is also called after a COM_CHANGE_USER command completes.
 
         Args:
-            connection (Connection): connection of the session
+            connection (mysql_mimic.connection.Connection): connection of the session
         """
+
+    async def get_user(self, username):
+        """
+        Get a user by username.
+
+        This is used during authentication.
+
+        Returns:
+            mysql_mimic.User: user
+        """
+        return User(name=username)
 
     async def set(self, **kwargs):
         """
