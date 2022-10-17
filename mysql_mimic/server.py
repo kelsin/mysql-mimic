@@ -1,11 +1,12 @@
 import asyncio
 import random
 
+from mysql_mimic.auth import GullibleAuthPlugin
 from mysql_mimic.connection import Connection
 from mysql_mimic.session import Session
 from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 from mysql_mimic.stream import MysqlStream
-from mysql_mimic.utils import seq
+from mysql_mimic.utils import seq, ensure_list
 
 
 class MaxConnectionsExceeded(Exception):
@@ -22,7 +23,14 @@ class MysqlServer:
         server_id (int): set a unique server ID. This is used to generate globally unique
             connection IDs. This should be an integer between 0 and 65535.
             If left as None, a random server ID will be generated.
-        conn_kwargs (dict): extra keyword args passed to new `Connection` instances
+        auth_plugins (list[mysql_mimic.auth.AuthPlugin]|None):
+            Authentication plugins to register. Defaults to `GullibleAuthPlugin`, which just
+            blindly accepts whatever `username` is given by the client.
+
+            The first plugin in this list is the default authentication plugin, which the server
+            will optimistically use when creating new connections, which can reduce the amount
+            of packets that need to be exchanged during the authentication process.
+
         **kwargs: extra keyword args passed to the asyncio start server command
     """
 
@@ -35,13 +43,14 @@ class MysqlServer:
         session_factory=Session,
         capabilities=DEFAULT_SERVER_CAPABILITIES,
         server_id=None,
-        conn_kwargs=None,
+        auth_plugins=None,
         **serve_kwargs,
     ):
         self.session_factory = session_factory
         self.capabilities = capabilities
         self.server_id = server_id or self._get_server_id()
-        self.conn_kwargs = conn_kwargs
+        self.auth_plugins = ensure_list(auth_plugins) or [GullibleAuthPlugin()]
+
         self._connection_seq = seq(self._MAX_CONNECTION_SEQ)
         self._connections = {}
         self._serve_kwargs = serve_kwargs
@@ -54,7 +63,7 @@ class MysqlServer:
             session=self.session_factory(),
             server_capabilities=self.capabilities,
             connection_id=connection_id,
-            **(self.conn_kwargs or {}),
+            auth_plugins=self.auth_plugins,
         )
         self._connections[connection_id] = connection
         try:

@@ -126,7 +126,7 @@ class Capabilities(IntFlag):
     CLIENT_IGNORE_SIGPIPE = auto()
     CLIENT_TRANSACTIONS = auto()
     CLIENT_RESERVED = auto()
-    CLIENT_RESERVED2 = auto()
+    CLIENT_SECURE_CONNECTION = auto()
     CLIENT_MULTI_STATEMENTS = auto()
     CLIENT_MULTI_RESULTS = auto()
     CLIENT_PS_MULTI_RESULTS = auto()
@@ -326,3 +326,10 @@ def read_str_len(reader):
 
 def read_str_rest(reader):
     return reader.read()
+
+
+def peek(reader, num_bytes=1):
+    pos = reader.tell()
+    val = reader.read(num_bytes)
+    reader.seek(pos)
+    return val

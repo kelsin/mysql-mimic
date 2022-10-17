@@ -5,6 +5,7 @@ from mysql_mimic import Session
 from mysql_mimic.charset import CharacterSet
 from mysql_mimic.results import ResultSet
 from mysql_mimic.admin import Admin
+from mysql_mimic.variables import SystemVariables
 
 
 class TestAdmin(unittest.IsolatedAsyncioTestCase):
@@ -15,7 +16,9 @@ class TestAdmin(unittest.IsolatedAsyncioTestCase):
             {"name": "col1", "type": "INTEGER"},
             {"name": "col2", "type": "INTEGER"},
         ]
-        self.cmd = Admin(connection_id=1, session=self.session)
+        self.cmd = Admin(
+            connection_id=1, session=self.session, variables=SystemVariables()
+        )
         self.cmd.database = "db"
 
     async def test_parse_show_columns(self):
@@ -63,6 +66,7 @@ class TestAdmin(unittest.IsolatedAsyncioTestCase):
                     "lower_case_table_names": 0,
                     "sql_mode": "",
                     "transaction_isolation": "READ-COMMITTED",
+                    "external_user": "",
                 },
             ),
             (
@@ -108,23 +112,17 @@ class TestAdmin(unittest.IsolatedAsyncioTestCase):
             ),
         ]:
             await self.cmd.parse(cmd)
+            self.assertEqual(self.cmd.vars["character_set_client"], expected_charset)
             self.assertEqual(
-                self.cmd.variables["character_set_client"], expected_charset
+                self.cmd.vars["character_set_connection"], expected_charset
+            )
+            self.assertEqual(self.cmd.vars["character_set_results"], expected_charset)
+            self.assertEqual(self.cmd.vars["collation_connection"], expected_collation)
+            self.assertEqual(
+                self.cmd.vars.client_charset, CharacterSet[expected_charset]
             )
             self.assertEqual(
-                self.cmd.variables["character_set_connection"], expected_charset
-            )
-            self.assertEqual(
-                self.cmd.variables["character_set_results"], expected_charset
-            )
-            self.assertEqual(
-                self.cmd.variables["collation_connection"], expected_collation
-            )
-            self.assertEqual(
-                self.cmd.client_character_set, CharacterSet[expected_charset]
-            )
-            self.assertEqual(
-                self.cmd.server_character_set, CharacterSet[expected_charset]
+                self.cmd.vars.server_charset, CharacterSet[expected_charset]
             )
 
     async def test_parse_set_variables(self):
@@ -138,4 +136,4 @@ class TestAdmin(unittest.IsolatedAsyncioTestCase):
             ("set version_comment = NULL", "mysql-mimic"),
         ]:
             await self.cmd.parse(cmd)
-            self.assertEqual(self.cmd.variables["version_comment"], expected)
+            self.assertEqual(self.cmd.vars["version_comment"], expected)

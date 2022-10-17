@@ -10,7 +10,8 @@ disable=
     too-many-public-methods,
     too-many-branches,
     too-many-return-statements,
-    unused-argument
+    unused-argument,
+    redefined-outer-name,
 
 [FORMAT]
 

@@ -54,6 +54,12 @@ class CharacterSet(IntEnum):
     def default_collation(self):
         return DEFAULT_COLLATIONS[self]
 
+    def decode(self, b):
+        return b.decode(self.codec)
+
+    def encode(self, s):
+        return s.encode(self.codec)
+
 
 class Collation(IntEnum):
     big5_chinese_ci = 1
