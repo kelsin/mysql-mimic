@@ -1,4 +1,10 @@
+from typing import Dict, TYPE_CHECKING, Optional, Any, Sequence, Union
+
 from mysql_mimic.auth import User
+
+if TYPE_CHECKING:
+    from mysql_mimic.results import AllowedResult, Column
+    from mysql_mimic.connection import Connection
 
 
 class Session:
@@ -8,13 +14,15 @@ class Session:
     This should be implemented by applications.
     """
 
-    async def query(self, sql, attrs):  # pylint: disable=unused-argument
+    async def query(
+        self, sql: str, attrs: Dict[str, str]
+    ) -> "AllowedResult":  # pylint: disable=unused-argument
         """
         Process a SQL query.
 
         Args:
-            sql (str): SQL statement from client
-            attrs (dict): Arbitrary query attributes set by client
+            sql: SQL statement from client
+            attrs: Arbitrary query attributes set by client
         Returns:
             One of:
             - tuple(rows, column_names), where "rows" is a sequence of sequences
@@ -27,35 +35,35 @@ class Session:
         """
         return [], []
 
-    async def close(self):
+    async def close(self) -> None:
         """
         Close the session.
 
         This is called when the client closes the connection
         """
 
-    async def init(self, connection):
+    async def init(self, connection: "Connection") -> None:
         """
         Called when connection phase is complete.
 
         This is also called after a COM_CHANGE_USER command completes.
 
         Args:
-            connection (mysql_mimic.connection.Connection): connection of the session
+            connection: connection of the session
         """
 
-    async def get_user(self, username):
+    async def get_user(self, username: str) -> Optional[User]:
         """
         Get a user by username.
 
         This is used during authentication.
 
         Returns:
-            mysql_mimic.User: user
+            user
         """
         return User(name=username)
 
-    async def set(self, **kwargs):
+    async def set(self, **kwargs: Dict[str, Any]) -> None:
         """
         Set session variables.
 
@@ -63,19 +71,21 @@ class Session:
             **kwargs: mapping of variable names to values
         """
 
-    async def show_columns(self, database, table):  # pylint: disable=unused-argument
+    async def show_columns(
+        self, database: str, table: str
+    ) -> Sequence[Union["Column", dict]]:  # pylint: disable=unused-argument
         """
         Show column metadata.
 
         Args:
-            database (str): database name
-            table (str): table name
+            database: database name
+            table: table name
         Returns:
-            list[mysql_mimic.results.Column|dict]: columns
+            columns
         """
         return []
 
-    async def rollback(self):
+    async def rollback(self) -> None:
         """
         Roll back the current transaction, canceling its changes.
         """

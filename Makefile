@@ -17,10 +17,15 @@ run:
 lint:
 	python -m pylint mysql_mimic/ tests/
 
+types:
+	python -m mypy -p mysql_mimic -p tests
+
 test:
 	coverage run --source=mysql_mimic -m pytest
 	coverage report
 	coverage html
+
+check: format-check lint types test
 
 build: clean
 	python setup.py sdist bdist_wheel

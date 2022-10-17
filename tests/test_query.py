@@ -2,34 +2,44 @@ import io
 from contextlib import closing
 from datetime import date, datetime, timedelta
 from functools import partial
+from typing import Any, Callable, Awaitable, Sequence, Dict, List, Tuple
 
 import pytest
 import pytest_asyncio
+import sqlalchemy.engine
+from mysql.connector import MySQLConnection
 from sqlalchemy import text
 import aiomysql
 
-from mysql_mimic import ResultColumn, ResultSet
+from mysql_mimic import ResultColumn, ResultSet, MysqlServer
 from mysql_mimic.charset import CharacterSet
+from mysql_mimic.results import AllowedResult
 from mysql_mimic.types import ColumnType
-from tests.conftest import PreparedDictCursor, query
+from tests.conftest import PreparedDictCursor, query, MockSession, ConnectFixture
+
+QueryFixture = Callable[[str], Awaitable[Sequence[Dict[str, Any]]]]
 
 
 @pytest_asyncio.fixture(
     params=["mysql.connector", "mysql.connector(prepared)", "aiomysql", "sqlalchemy"]
 )
 async def query_fixture(
-    mysql_connector_conn, aiomysql_conn, session, sqlalchemy_engine, request
-):
+    mysql_connector_conn: MySQLConnection,
+    aiomysql_conn: aiomysql.Connection,
+    session: MockSession,
+    sqlalchemy_engine: sqlalchemy.engine.Engine,
+    request: Any,
+) -> QueryFixture:
     if request.param == "mysql.connector":
 
-        async def q1(sql):
+        async def q1(sql: str) -> Sequence[Dict[str, Any]]:
             return await query(mysql_connector_conn, sql)
 
         return q1
 
     if request.param == "mysql.connector(prepared)":
 
-        async def q2(sql):
+        async def q2(sql: str) -> Sequence[Dict[str, Any]]:
             return await query(
                 mysql_connector_conn, sql, cursor_class=PreparedDictCursor
             )
@@ -38,7 +48,7 @@ async def query_fixture(
 
     if request.param == "aiomysql":
 
-        async def q3(sql):
+        async def q3(sql: str) -> Sequence[Dict[str, Any]]:
             async with aiomysql_conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(sql)
                 return await cur.fetchall()
@@ -47,7 +57,7 @@ async def query_fixture(
 
     if request.param == "sqlalchemy":
 
-        async def q4(sql):
+        async def q4(sql: str) -> Sequence[Dict[str, Any]]:
             # Sqlalchemy fires off a bunch of metadata queries when connecting.
             # We'll just route things like "SELECT VERSION()" to sqlite, which should be
             # fine because the connection replaces "VERSION()" with the version name.
@@ -58,6 +68,8 @@ async def query_fixture(
                 return cursor.mappings().all()
 
         return q4
+
+    raise Exception("Unexpected fixture param")
 
 
 EXPLICIT_TYPE_TESTS = [
@@ -128,7 +140,13 @@ EXPLICIT_TYPE_TESTS = [
         *EXPLICIT_TYPE_TESTS,
     ],
 )
-async def test_query(session, server, rv, expected, query_fixture):
+async def test_query(
+    session: MockSession,
+    server: MysqlServer,
+    rv: AllowedResult,
+    expected: List[Dict[str, Any]],
+    query_fixture: QueryFixture,
+) -> None:
     session.return_value = rv
     result = await query_fixture("SELECT b FROM a")
     assert expected == result
@@ -165,8 +183,13 @@ async def test_query(session, server, rv, expected, query_fixture):
     ],
 )
 async def test_prepared_stmt(
-    session, server, mysql_connector_conn, sql, params, expected
-):
+    session: MockSession,
+    server: MysqlServer,
+    mysql_connector_conn: MySQLConnection,
+    sql: str,
+    params: Tuple[Any],
+    expected: str,
+) -> None:
     session.echo = True
     result = await query(
         conn=mysql_connector_conn,
@@ -178,25 +201,28 @@ async def test_prepared_stmt(
 
 
 @pytest.mark.asyncio
-async def test_init(port, session, server):
+async def test_init(port: int, session: MockSession, server: MysqlServer) -> None:
     async with aiomysql.connect(
         port=port, user="levon_helm", db="db", program_name="test"
     ):
         connection = session.connection
+        assert connection is not None
         assert connection.username == "levon_helm"
         assert connection.client_connect_attrs["program_name"] == "test"
         assert connection.database == "db"
 
 
 @pytest.mark.asyncio
-async def test_connection_id(port, server):
+async def test_connection_id(port: int, server: MysqlServer) -> None:
     async with aiomysql.connect(port=port) as conn1:
         async with aiomysql.connect(port=port) as conn2:
             assert conn1.server_thread_id[0] + 1 == conn2.server_thread_id[0]
 
 
 @pytest.mark.asyncio
-async def test_replace_variables(session, server, connect):
+async def test_replace_variables(
+    session: MockSession, server: MysqlServer, connect: ConnectFixture
+) -> None:
     session.echo = True
 
     with closing(await connect(user="levon_helm")) as conn:
@@ -217,7 +243,9 @@ async def test_replace_variables(session, server, connect):
 
 
 @pytest.mark.asyncio
-async def test_query_attributes(session, server, mysql_connector_conn):
+async def test_query_attributes(
+    session: MockSession, server: MysqlServer, mysql_connector_conn: MySQLConnection
+) -> None:
     session.echo = True
 
     for i, q in enumerate(

@@ -1,18 +1,20 @@
 from contextlib import closing
+from typing import Optional, Tuple, List
 
 import pytest
 from mysql.connector import DatabaseError
 from mysql.connector.abstracts import MySQLConnectionAbstract
 from mysql.connector.plugins.mysql_clear_password import MySQLClearPasswordAuthPlugin
 
-from mysql_mimic import User
+from mysql_mimic import User, MysqlServer
 from mysql_mimic.auth import (
     get_mysql_native_password_auth_string,
     MysqlNativePasswordAuthPlugin,
     GullibleAuthPlugin,
     AbstractMysqlClearPasswordAuthPlugin,
+    AuthPlugin,
 )
-from tests.conftest import query, to_thread
+from tests.conftest import query, to_thread, MockSession, ConnectFixture
 
 # mysql.connector throws an error if you try to use mysql_clear_password without SSL.
 # That's silly, since SSL termination doesn't have to be handled by MySQL.
@@ -30,8 +32,8 @@ PASSWORD_AUTH_PLUGIN = MysqlNativePasswordAuthPlugin.client_plugin_name
 class TestPlugin(AbstractMysqlClearPasswordAuthPlugin):
     name = "test_plugin"
 
-    async def check(self, username, password):
-        return username == password
+    async def check(self, username: str, password: str) -> Optional[str]:
+        return username if username == password else None
 
 
 TEST_PLUGIN_AUTH_USER = "garth_hudson"
@@ -83,8 +85,14 @@ USERS = {
     ],
 )
 async def test_auth(
-    server, session, connect, auth_plugins, username, password, auth_plugin
-):
+    server: MysqlServer,
+    session: MockSession,
+    connect: ConnectFixture,
+    auth_plugins: List[AuthPlugin],
+    username: str,
+    password: Optional[str],
+    auth_plugin: Optional[str],
+) -> None:
     session.use_sqlite = True
     session.users = USERS
     kwargs = {"user": username, "password": password, "auth_plugin": auth_plugin}
@@ -109,7 +117,14 @@ async def test_auth(
         ),
     ],
 )
-async def test_change_user(server, session, connect, auth_plugins, user1, user2):
+async def test_change_user(
+    server: MysqlServer,
+    session: MockSession,
+    connect: ConnectFixture,
+    auth_plugins: List[AuthPlugin],
+    user1: Tuple[str, str, str],
+    user2: Tuple[str, str, str],
+) -> None:
     session.use_sqlite = True
     session.users = USERS
     kwargs1 = {"user": user1[0], "password": user1[1], "auth_plugin": user1[2]}
@@ -140,8 +155,15 @@ async def test_change_user(server, session, connect, auth_plugins, user1, user2)
     ],
 )
 async def test_access_denied(
-    server, session, connect, auth_plugins, username, password, auth_plugin, msg
-):
+    server: MysqlServer,
+    session: MockSession,
+    connect: ConnectFixture,
+    auth_plugins: Optional[List[AuthPlugin]],
+    username: Optional[str],
+    password: Optional[str],
+    auth_plugin: Optional[str],
+    msg: str,
+) -> None:
     session.use_sqlite = True
     session.users = USERS
     kwargs = {"user": username, "password": password, "auth_plugin": auth_plugin}

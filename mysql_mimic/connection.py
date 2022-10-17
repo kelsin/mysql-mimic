@@ -1,11 +1,14 @@
 import logging
+from typing import Sequence, Optional, Dict, Any, Iterator
 
-from mysql_mimic.auth import AuthInfo, Forbidden, Success
+from mysql_mimic.auth import AuthInfo, Forbidden, Success, AuthPlugin, AuthState
+from mysql_mimic.charset import CharacterSet
 from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 from mysql_mimic.errors import ErrorCode, MysqlError
 from mysql_mimic.prepared import PreparedStatement, REGEX_PARAM
-from mysql_mimic.results import ensure_result_set
-from mysql_mimic import types, packets
+from mysql_mimic.results import ensure_result_set, ResultSet
+from mysql_mimic import types, packets, Session
+from mysql_mimic.stream import MysqlStream
 from mysql_mimic.types import Capabilities
 from mysql_mimic.utils import seq
 from mysql_mimic.admin import Admin
@@ -19,21 +22,21 @@ class Connection:
 
     def __init__(
         self,
-        stream,
-        connection_id,
-        session,
-        auth_plugins,
-        server_capabilities=DEFAULT_SERVER_CAPABILITIES,
+        stream: MysqlStream,
+        connection_id: int,
+        session: Session,
+        auth_plugins: Sequence[AuthPlugin],
+        server_capabilities: Capabilities = DEFAULT_SERVER_CAPABILITIES,
     ):
         """
         Client connection.
 
         Args:
-            stream (mysql_mimic.stream.MysqlStream): stream to use for writing/reading
-            connection_id (int): 32 bit connection ID
-            session (mysql_mimic.session.Session): session
-            auth_plugins (list[mysql_mimic.auth.AuthPlugin]): authentication plugins to provide
-            server_capabilities (int): server capability flags
+            stream: stream to use for writing/reading
+            connection_id: 32 bit connection ID
+            session: session
+            auth_plugins: authentication plugins to provide
+            server_capabilities: server capability flags
         """
         self.stream = stream
         self.session = session
@@ -43,20 +46,19 @@ class Connection:
 
         # Authentication plugins can reuse the initial handshake data.
         # This let's clients reuse the nonce when performing COM_CHANGE_USER, skipping a round trip.
-        self.handshake_auth_data = None
+        self.handshake_auth_data: Optional[bytes] = None
 
         self.server_capabilities = server_capabilities
         self.capabilities = Capabilities(0)
         self.status_flags = types.ServerStatus(0)
 
         self.max_packet_size = 0
-        self.auth_response = None
-        self.client_plugin_name = None
-        self.client_connect_attrs = {}
+        self.client_plugin_name: Optional[str] = None
+        self.client_connect_attrs: Dict[str, str] = {}
         self.zstd_compression_level = 0
 
         self.prepared_stmt_seq = seq(self._MAX_PREPARED_STMT_ID)
-        self.prepared_stmts = {}
+        self.prepared_stmts: Dict[int, PreparedStatement] = {}
 
         self.vars = SystemVariables()
         self.admin = Admin(
@@ -64,22 +66,22 @@ class Connection:
         )
 
     @property
-    def server_charset(self):
+    def server_charset(self) -> CharacterSet:
         return self.vars.server_charset
 
     @property
-    def client_charset(self):
+    def client_charset(self) -> CharacterSet:
         return self.vars.client_charset
 
     @property
-    def database(self):
+    def database(self) -> Optional[str]:
         return self.admin.database
 
     @property
-    def username(self):
+    def username(self) -> Optional[str]:
         return self.admin.username
 
-    async def start(self):
+    async def start(self) -> None:
         logger.info("Started new connection: %s", self.connection_id)
         try:
             await self.connection_phase()
@@ -93,9 +95,9 @@ class Connection:
         finally:
             await self.session.close()
 
-    async def connection_phase(self):
+    async def connection_phase(self) -> None:
         auth_data, auth_state = await self.default_auth_plugin.start()
-        self.handshake_auth_data = auth_data
+        assert isinstance(auth_data, bytes)
 
         handshake_v10 = packets.make_handshake_v10(
             capabilities=self.server_capabilities,
@@ -130,7 +132,7 @@ class Connection:
         )
         self.stream.reset_seq()
 
-    async def handle_change_user(self, data):
+    async def handle_change_user(self, data: bytes) -> None:
         com_change_user = packets.parse_com_change_user(
             capabilities=self.capabilities,
             client_charset=self.client_charset,
@@ -155,13 +157,13 @@ class Connection:
 
     async def authenticate(
         self,
-        username,
-        auth_response,
-        client_plugin_name,
-        connect_attrs,
-        auth_state=None,
-        server_plugin=None,
-    ):
+        username: str,
+        auth_response: bytes,
+        client_plugin_name: Optional[str],
+        connect_attrs: Dict[str, str],
+        auth_state: Optional[AuthState] = None,
+        server_plugin: Optional[AuthPlugin] = None,
+    ) -> None:
         user = await self.session.get_user(username)
 
         if not user:
@@ -173,7 +175,9 @@ class Connection:
             )
             return
 
-        user_plugin = self.auth_plugins.get(user.auth_plugin, self.default_auth_plugin)
+        user_plugin = self.auth_plugins.get(
+            user.auth_plugin or "", self.default_auth_plugin
+        )
         auth_info = AuthInfo(
             username=username,
             data=auth_response,
@@ -193,6 +197,7 @@ class Connection:
             and server_plugin.name == user_plugin.name
         ):
             # Optimistic match during handshake
+            assert auth_state is not None
             decision = await auth_state.asend(auth_info)
         elif (
             user_plugin.client_plugin_name is None
@@ -203,7 +208,7 @@ class Connection:
         else:
             # Mismatch - switch authentication method
             decision, auth_state = await user_plugin.start()
-            if user_plugin.client_plugin_name:
+            if user_plugin.client_plugin_name and isinstance(decision, bytes):
                 await self.stream.write(
                     packets.make_auth_switch_request(
                         server_charset=self.server_charset,
@@ -232,7 +237,7 @@ class Connection:
                 )
             )
 
-    async def command_phase(self):
+    async def command_phase(self) -> None:
         """https://dev.mysql.com/doc/internals/en/command-phase.html"""
         while True:
             data = await self.stream.read()
@@ -279,7 +284,7 @@ class Connection:
             finally:
                 self.stream.reset_seq()
 
-    async def handle_ping(self, data):  # pylint: disable=unused-argument
+    async def handle_ping(self, data: bytes) -> None:  # pylint: disable=unused-argument
         """
         https://dev.mysql.com/doc/internals/en/com-ping.html
 
@@ -287,7 +292,9 @@ class Connection:
         """
         await self.stream.write(self.ok())
 
-    async def handle_reset_connection(self, data):  # pylint: disable=unused-argument
+    async def handle_reset_connection(
+        self, data: bytes
+    ) -> None:  # pylint: disable=unused-argument
         """
         https://dev.mysql.com/doc/internals/en/com-reset-connection.html
 
@@ -297,7 +304,9 @@ class Connection:
         """
         await self.stream.write(self.ok())
 
-    async def handle_debug(self, data):  # pylint: disable=unused-argument
+    async def handle_debug(
+        self, data: bytes
+    ) -> None:  # pylint: disable=unused-argument
         """
         https://dev.mysql.com/doc/internals/en/com-debug.html
 
@@ -307,7 +316,7 @@ class Connection:
         """
         await self.stream.write(self.ok())
 
-    async def handle_query(self, data):
+    async def handle_query(self, data: bytes) -> None:
         """
         https://dev.mysql.com/doc/internals/en/com-query.html
 
@@ -329,7 +338,7 @@ class Connection:
         for packet in self.text_resultset(result_set):
             await self.stream.write(packet)
 
-    async def handle_stmt_prepare(self, data):
+    async def handle_stmt_prepare(self, data: bytes) -> None:
         """
         https://dev.mysql.com/doc/internals/en/com-stmt-prepare.html
 
@@ -350,7 +359,7 @@ class Connection:
         for packet in self.com_stmt_prepare_response(stmt):
             await self.stream.write(packet)
 
-    async def handle_stmt_send_long_data(self, data):
+    async def handle_stmt_send_long_data(self, data: bytes) -> None:
         """
         https://dev.mysql.com/doc/internals/en/com-stmt-send-long-data.html
 
@@ -365,7 +374,7 @@ class Connection:
         )
         buffer.extend(com_stmt_send_long_data.data)
 
-    async def handle_stmt_execute(self, data):
+    async def handle_stmt_execute(self, data: bytes) -> None:
         """
         https://dev.mysql.com/doc/internals/en/com-stmt-execute.html
 
@@ -417,7 +426,7 @@ class Connection:
                 await self.stream.write(row)
             await self.stream.write(self.ok_or_eof())
 
-    async def handle_stmt_fetch(self, data):
+    async def handle_stmt_fetch(self, data: bytes) -> None:
         """
         https://dev.mysql.com/doc/internals/en/com-stmt-fetch.html
 
@@ -426,6 +435,7 @@ class Connection:
         com_stmt_fetch = packets.parse_handle_stmt_fetch(data)
 
         stmt = self.get_stmt(com_stmt_fetch.stmt_id)
+        assert stmt.cursor is not None
         count = 0
         for _, packet in zip(range(com_stmt_fetch.num_rows), stmt.cursor):
             await self.stream.write(packet)
@@ -441,7 +451,7 @@ class Connection:
             )
         )
 
-    async def handle_stmt_reset(self, data):
+    async def handle_stmt_reset(self, data: bytes) -> None:
         """
         https://dev.mysql.com/doc/internals/en/com-stmt-reset.html
 
@@ -450,11 +460,11 @@ class Connection:
         """
         com_stmt_reset = packets.parse_com_stmt_reset(data)
         stmt = self.get_stmt(com_stmt_reset.stmt_id)
-        stmt.buffers = None
+        stmt.param_buffers = None
         stmt.cursor = None
         await self.stream.write(self.ok())
 
-    async def handle_stmt_close(self, data):
+    async def handle_stmt_close(self, data: bytes) -> None:
         """
         https://dev.mysql.com/doc/internals/en/com-stmt-close.html
 
@@ -463,36 +473,41 @@ class Connection:
         com_stmt_close = packets.parse_com_stmt_close(data)
         self.prepared_stmts.pop(com_stmt_close.stmt_id, None)
 
-    def get_stmt(self, stmt_id):
+    def get_stmt(self, stmt_id: int) -> PreparedStatement:
         if stmt_id in self.prepared_stmts:
             return self.prepared_stmts[stmt_id]
         raise MysqlError(f"Unknown statement: {stmt_id}", ErrorCode.UNKNOWN_PROCEDURE)
 
-    async def query(self, sql, query_attrs):
+    async def query(self, sql: str, query_attrs: Dict[str, str]) -> ResultSet:
         result_set = await self.admin.parse(sql)
 
         if result_set is None:
             sql = self.admin.replace_variables(sql)
-            result_set = await self.session.query(sql, query_attrs)
-            result_set = result_set and ensure_result_set(result_set)
+            result_set = ensure_result_set(await self.session.query(sql, query_attrs))
 
         return result_set
 
-    def ok(self, **kwargs):
+    def ok(self, **kwargs: Any) -> bytes:
         return packets.make_ok(
             capabilities=self.capabilities,
             status_flags=self.status_flags,
             **kwargs,
         )
 
-    def eof(self, **kwargs):
+    def eof(self, **kwargs: Any) -> bytes:
         return packets.make_eof(
             capabilities=self.capabilities,
             status_flags=self.status_flags,
             **kwargs,
         )
 
-    def ok_or_eof(self, affected_rows=0, last_insert_id=0, warnings=0, flags=0):
+    def ok_or_eof(
+        self,
+        affected_rows: int = 0,
+        last_insert_id: int = 0,
+        warnings: int = 0,
+        flags: int = 0,
+    ) -> bytes:
         if self.deprecate_eof():
             return self.ok(
                 eof=True,
@@ -503,15 +518,15 @@ class Connection:
             )
         return self.eof(warnings=warnings, flags=flags)
 
-    def error(self, **kwargs):
+    def error(self, **kwargs: Any) -> bytes:
         return packets.make_error(
             capabilities=self.capabilities, server_charset=self.server_charset, **kwargs
         )
 
-    def deprecate_eof(self):
+    def deprecate_eof(self) -> bool:
         return Capabilities.CLIENT_DEPRECATE_EOF in self.capabilities
 
-    def text_resultset(self, result_set):
+    def text_resultset(self, result_set: ResultSet) -> Iterator[bytes]:
         yield packets.make_column_count(
             capabilities=self.capabilities, column_count=len(result_set.columns)
         )
@@ -535,7 +550,9 @@ class Connection:
 
         yield self.ok_or_eof(affected_rows=affected_rows)
 
-    def com_stmt_prepare_response(self, statement):
+    def com_stmt_prepare_response(
+        self, statement: PreparedStatement
+    ) -> Iterator[bytes]:
         yield packets.make_com_stmt_prepare_ok(statement)
         if statement.num_params:
             for _ in range(statement.num_params):

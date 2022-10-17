@@ -1,3 +1,4 @@
+import asyncio
 import struct
 
 from mysql_mimic.errors import MysqlError, ErrorCode
@@ -10,12 +11,12 @@ class ConnectionClosed(Exception):
 
 
 class MysqlStream:
-    def __init__(self, reader, writer):
+    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         self.reader = reader
         self.writer = writer
         self.seq = seq(256)
 
-    async def read(self):
+    async def read(self) -> bytes:
         data = b""
         while True:
             header = await self.reader.read(4)
@@ -42,7 +43,7 @@ class MysqlStream:
             if payload_length < 0xFFFFFF:
                 return data
 
-    async def write(self, data):
+    async def write(self, data: bytes) -> None:
         while True:
             # Grab first 0xFFFFFF bytes to send
             payload = data[:0xFFFFFF]
@@ -58,5 +59,5 @@ class MysqlStream:
             if len(payload) != 0xFFFFFF:
                 return
 
-    def reset_seq(self):
+    def reset_seq(self) -> None:
         self.seq.reset()

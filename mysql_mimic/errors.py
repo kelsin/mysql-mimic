@@ -36,12 +36,12 @@ SQLSTATES = {
 }
 
 
-def get_sqlstate(code):
+def get_sqlstate(code: ErrorCode) -> bytes:
     return SQLSTATES.get(code, b"HY000")
 
 
 class MysqlError(Exception):
-    def __init__(self, msg, code=ErrorCode.UNKNOWN_ERROR):
+    def __init__(self, msg: str, code: ErrorCode = ErrorCode.UNKNOWN_ERROR):
         super().__init__(f"{code}: {msg}")
         self.msg = msg
         self.code = code
