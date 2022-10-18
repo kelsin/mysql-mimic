@@ -1,3 +1,4 @@
+from __future__ import annotations
 from enum import IntEnum
 
 
@@ -45,19 +46,19 @@ class CharacterSet(IntEnum):
     utf8mb4 = 255
 
     @property
-    def codec(self):
+    def codec(self) -> str:
         if self.name == "utf8mb4":
             return "utf8"
         return self.name
 
     @property
-    def default_collation(self):
+    def default_collation(self) -> Collation:
         return DEFAULT_COLLATIONS[self]
 
-    def decode(self, b):
+    def decode(self, b: bytes) -> str:
         return b.decode(self.codec)
 
-    def encode(self, s):
+    def encode(self, s: str) -> bytes:
         return s.encode(self.codec)
 
 
@@ -287,11 +288,11 @@ class Collation(IntEnum):
     utf8mb4_0900_ai_ci = 255
 
     @property
-    def codec(self):
+    def codec(self) -> str:
         return self.charset.codec
 
     @property
-    def charset(self):
+    def charset(self) -> CharacterSet:
         return DEFAULT_CHARACTER_SETS[self]
 
 

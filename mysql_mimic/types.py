@@ -1,4 +1,5 @@
 """Basic data types of the mysql protocol"""
+import io
 import struct
 
 from enum import IntEnum, IntFlag, auto
@@ -175,7 +176,7 @@ class ComStmtExecuteFlags(IntFlag):
     PARAMETER_COUNT_AVAILABLE = 0x08
 
 
-def uint_len(i):
+def uint_len(i: int) -> bytes:
     if i < 251:
         return struct.pack("<B", i)
     if i < 2**16:
@@ -186,112 +187,112 @@ def uint_len(i):
     return struct.pack("<BQ", 0xFE, i)
 
 
-def uint_1(i):
+def uint_1(i: int) -> bytes:
     return struct.pack("<B", i)
 
 
-def uint_2(i):
+def uint_2(i: int) -> bytes:
     return struct.pack("<H", i)
 
 
-def uint_3(i):
+def uint_3(i: int) -> bytes:
     return struct.pack("<HB", i & 0xFFFF, i >> 16)
 
 
-def uint_4(i):
+def uint_4(i: int) -> bytes:
     return struct.pack("<I", i)
 
 
-def uint_6(i):
+def uint_6(i: int) -> bytes:
     return struct.pack("<IH", i & 0xFFFFFFFF, i >> 32)
 
 
-def uint_8(i):
+def uint_8(i: int) -> bytes:
     return struct.pack("<Q", i)
 
 
-def str_fixed(l, s):
+def str_fixed(l: int, s: bytes) -> bytes:
     return struct.pack(f"<{l}s", s)
 
 
-def str_null(s):
+def str_null(s: bytes) -> bytes:
     l = len(s)
     return struct.pack(f"<{l}sB", s, 0)
 
 
-def str_len(s):
+def str_len(s: bytes) -> bytes:
     l = len(s)
     return uint_len(l) + str_fixed(l, s)
 
 
-def str_rest(s):
+def str_rest(s: bytes) -> bytes:
     l = len(s)
     return str_fixed(l, s)
 
 
-def read_int_1(reader):
+def read_int_1(reader: io.BytesIO) -> int:
     data = reader.read(1)
     return struct.unpack("<b", data)[0]
 
 
-def read_uint_1(reader):
+def read_uint_1(reader: io.BytesIO) -> int:
     data = reader.read(1)
     return struct.unpack("<B", data)[0]
 
 
-def read_int_2(reader):
+def read_int_2(reader: io.BytesIO) -> int:
     data = reader.read(2)
     return struct.unpack("<h", data)[0]
 
 
-def read_uint_2(reader):
+def read_uint_2(reader: io.BytesIO) -> int:
     data = reader.read(2)
     return struct.unpack("<H", data)[0]
 
 
-def read_uint_3(reader):
+def read_uint_3(reader: io.BytesIO) -> int:
     data = reader.read(3)
     t = struct.unpack("<HB", data)
     return t[0] + (t[1] << 16)
 
 
-def read_int_4(reader):
+def read_int_4(reader: io.BytesIO) -> int:
     data = reader.read(4)
     return struct.unpack("<i", data)[0]
 
 
-def read_uint_4(reader):
+def read_uint_4(reader: io.BytesIO) -> int:
     data = reader.read(4)
     return struct.unpack("<I", data)[0]
 
 
-def read_uint_6(reader):
+def read_uint_6(reader: io.BytesIO) -> int:
     data = reader.read(6)
     t = struct.unpack("<IH", data)
     return t[0] + (t[1] << 32)
 
 
-def read_int_8(reader):
+def read_int_8(reader: io.BytesIO) -> int:
     data = reader.read(8)
     return struct.unpack("<q", data)[0]
 
 
-def read_uint_8(reader):
+def read_uint_8(reader: io.BytesIO) -> int:
     data = reader.read(8)
     return struct.unpack("<Q", data)[0]
 
 
-def read_float(reader):
+def read_float(reader: io.BytesIO) -> float:
     data = reader.read(4)
     return struct.unpack("<f", data)[0]
 
 
-def read_double(reader):
+def read_double(reader: io.BytesIO) -> float:
     data = reader.read(8)
     return struct.unpack("<d", data)[0]
 
 
-def read_uint_len(reader):
+def read_uint_len(reader: io.BytesIO) -> int:
     i = read_uint_1(reader)
 
     if i == 0xFE:
@@ -306,11 +307,11 @@ def read_uint_len(reader):
     return i
 
 
-def read_str_fixed(reader, l):
+def read_str_fixed(reader: io.BytesIO, l: int) -> bytes:
     return reader.read(l)
 
 
-def read_str_null(reader):
+def read_str_null(reader: io.BytesIO) -> bytes:
     data = b""
     while True:
         b = reader.read(1)
@@ -319,16 +320,16 @@ def read_str_null(reader):
         data += b
 
 
-def read_str_len(reader):
+def read_str_len(reader: io.BytesIO) -> bytes:
     l = read_uint_len(reader)
     return read_str_fixed(reader, l)
 
 
-def read_str_rest(reader):
+def read_str_rest(reader: io.BytesIO) -> bytes:
     return reader.read()
 
 
-def peek(reader, num_bytes=1):
+def peek(reader: io.BytesIO, num_bytes: int = 1) -> bytes:
     pos = reader.tell()
     val = reader.read(num_bytes)
     reader.seek(pos)

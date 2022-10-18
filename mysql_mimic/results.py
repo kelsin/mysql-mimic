@@ -1,11 +1,17 @@
+from __future__ import annotations
+
+import io
 import struct
 from dataclasses import dataclass
 from datetime import datetime, date, timedelta
-from typing import Iterable, Sequence, Optional
+from typing import Iterable, Sequence, Optional, Callable, Any, Union, Tuple, Dict
 
 from mysql_mimic.errors import MysqlError
 from mysql_mimic.types import ColumnType, str_len, uint_1, uint_2, uint_4
 from mysql_mimic.charset import CharacterSet
+
+
+Encoder = Callable[[Any, "ResultColumn"], bytes]
 
 
 class ResultColumn:
@@ -13,33 +19,33 @@ class ResultColumn:
     Column data for a result set
 
     Args:
-        name (str): column name
-        type (ColumnType): column type
-        character_set (CharacterSet): column character set. Only relevant for string columns.
-        text_encoder ((Any, ResultColumn) -> bytes):
-            Optionally override the function used to encode values for MySQL's text protocol
-        binary_encoder ((Any, ResultColumn) -> bytes):
-            Optionally override the function used to encode values for MySQL's binary protocol
+        name: column name
+        type: column type
+        character_set: column character set. Only relevant for string columns.
+        text_encoder: Optionally override the function used to encode values for MySQL's text protocol
+        binary_encoder: Optionally override the function used to encode values for MySQL's binary protocol
     """
 
     def __init__(
         self,
-        name,
-        type,  # pylint: disable=redefined-builtin
-        character_set=CharacterSet.utf8mb4,
-        text_encoder=None,
-        binary_encoder=None,
+        name: str,
+        type: ColumnType,  # pylint: disable=redefined-builtin
+        character_set: CharacterSet = CharacterSet.utf8mb4,
+        text_encoder: Optional[Encoder] = None,
+        binary_encoder: Optional[Encoder] = None,
     ):
         self.name = name
         self.type = type
         self.character_set = character_set
-        self.text_encoder = text_encoder or _TEXT_ENCODERS.get(type, _unsupported)
-        self.binary_encoder = binary_encoder or _BINARY_ENCODERS.get(type, _unsupported)
+        self.text_encoder = text_encoder or _TEXT_ENCODERS.get(type) or _unsupported
+        self.binary_encoder = (
+            binary_encoder or _BINARY_ENCODERS.get(type) or _unsupported
+        )
 
-    def text_encode(self, val):
+    def text_encode(self, val: Any) -> bytes:
         return self.text_encoder(self, val)
 
-    def binary_encode(self, val):
+    def binary_encode(self, val: Any) -> bytes:
         return self.binary_encoder(self, val)
 
 
@@ -48,7 +54,7 @@ class ResultSet:
     rows: Iterable[Sequence]
     columns: Sequence[ResultColumn]
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return bool(self.columns)
 
 
@@ -71,7 +77,15 @@ class Column:
     comment: Optional[str] = None
 
 
-def ensure_result_set(result):
+AllowedColumn = Union[ResultColumn, str]
+AllowedResult = Union[
+    ResultSet, Tuple[Sequence[Sequence[Any]], Sequence[AllowedColumn]], None
+]
+
+
+def ensure_result_set(result: AllowedResult) -> ResultSet:
+    if result is None:
+        return ResultSet([], [])
     if isinstance(result, ResultSet):
         return result
     if isinstance(result, tuple):
@@ -82,16 +96,17 @@ def ensure_result_set(result):
         rows = result[0]
         columns = result[1]
 
-        columns = [_ensure_result_col(col, i, rows) for i, col in enumerate(columns)]
         return ResultSet(
             rows=rows,
-            columns=columns,
+            columns=[_ensure_result_col(col, i, rows) for i, col in enumerate(columns)],
         )
 
     raise MysqlError(f"Unexpected result set type: {type(result)}")
 
 
-def _ensure_result_col(column, idx, rows):
+def _ensure_result_col(
+    column: AllowedColumn, idx: int, rows: Sequence[Sequence[Any]]
+) -> ResultColumn:
     if isinstance(column, ResultColumn):
         return column
 
@@ -106,7 +121,9 @@ def _ensure_result_col(column, idx, rows):
     raise MysqlError(f"Unexpected result column value: {column}")
 
 
-def _find_first_non_null_value(idx, rows):
+def _find_first_non_null_value(
+    idx: int, rows: Sequence[Sequence[Any]]
+) -> Optional[Any]:
     for row in rows:
         value = row[idx]
         if value is not None:
@@ -114,11 +131,11 @@ def _find_first_non_null_value(idx, rows):
     return None
 
 
-def _binary_encode_tiny(col, val):
+def _binary_encode_tiny(col: ResultColumn, val: Any) -> bytes:
     return uint_1(int(bool(val)))
 
 
-def _binary_encode_str(col, val):
+def _binary_encode_str(col: ResultColumn, val: Any) -> bytes:
     if not isinstance(val, bytes):
         val = str(val)
 
@@ -128,7 +145,7 @@ def _binary_encode_str(col, val):
     return str_len(val)
 
 
-def _binary_encode_date(col, val):
+def _binary_encode_date(col: ResultColumn, val: Any) -> bytes:
     if isinstance(val, (float, int)):
         val = datetime.fromtimestamp(val)
 
@@ -174,31 +191,31 @@ def _binary_encode_date(col, val):
     )
 
 
-def _binary_encode_short(col, val):
+def _binary_encode_short(col: ResultColumn, val: Any) -> bytes:
     return struct.pack("<h", val)
 
 
-def _binary_encode_int(col, val):
+def _binary_encode_int(col: ResultColumn, val: Any) -> bytes:
     return struct.pack("<i", val)
 
 
-def _binary_encode_long(col, val):
+def _binary_encode_long(col: ResultColumn, val: Any) -> bytes:
     return struct.pack("<l", val)
 
 
-def _binary_encode_longlong(col, val):
+def _binary_encode_longlong(col: ResultColumn, val: Any) -> bytes:
     return struct.pack("<q", val)
 
 
-def _binary_encode_float(col, val):
+def _binary_encode_float(col: ResultColumn, val: Any) -> bytes:
     return struct.pack("<f", val)
 
 
-def _binary_encode_double(col, val):
+def _binary_encode_double(col: ResultColumn, val: Any) -> bytes:
     return struct.pack("<d", val)
 
 
-def _binary_encode_timedelta(col, val):
+def _binary_encode_timedelta(col: ResultColumn, val: Any) -> bytes:
     days = abs(val.days)
     hours, remainder = divmod(abs(val.seconds), 3600)
     minutes, seconds = divmod(remainder, 60)
@@ -231,7 +248,7 @@ def _binary_encode_timedelta(col, val):
     )
 
 
-def _text_encode_str(col, val):
+def _text_encode_str(col: ResultColumn, val: Any) -> bytes:
     if not isinstance(val, bytes):
         val = str(val)
 
@@ -241,15 +258,15 @@ def _text_encode_str(col, val):
     return val
 
 
-def _text_encode_tiny(col, val):
+def _text_encode_tiny(col: ResultColumn, val: Any) -> bytes:
     return _text_encode_str(col, int(val))
 
 
-def _unsupported(col, val):
+def _unsupported(col: ResultColumn, val: Any) -> bytes:
     raise MysqlError(f"Unsupported column type: {col.type}")
 
 
-def _noop(col, val):
+def _noop(col: ResultColumn, val: Any) -> bytes:
     return val
 
 
@@ -268,7 +285,7 @@ _PY_TO_MYSQL_TYPE = {
 }
 
 
-_TEXT_ENCODERS = {
+_TEXT_ENCODERS: Dict[ColumnType, Encoder] = {
     ColumnType.DECIMAL: _text_encode_str,
     ColumnType.TINY: _text_encode_tiny,
     ColumnType.SHORT: _text_encode_str,
@@ -305,7 +322,7 @@ _TEXT_ENCODERS = {
     ColumnType.GEOMETRY: _text_encode_str,
 }
 
-_BINARY_ENCODERS = {
+_BINARY_ENCODERS: Dict[ColumnType, Encoder] = {
     ColumnType.DECIMAL: _binary_encode_str,
     ColumnType.TINY: _binary_encode_tiny,
     ColumnType.SHORT: _binary_encode_short,
@@ -343,7 +360,7 @@ _BINARY_ENCODERS = {
 }
 
 
-def infer_type(val):
+def infer_type(val: Any) -> ColumnType:
     for py_type, my_type in _PY_TO_MYSQL_TYPE.items():
         if isinstance(val, py_type):
             return my_type
@@ -355,39 +372,41 @@ class NullBitmap:
 
     __slots__ = ("offset", "bitmap")
 
-    def __init__(self, bitmap, offset=0):
+    def __init__(self, bitmap: bytearray, offset: int = 0):
         self.offset = offset
         self.bitmap = bitmap
 
     @classmethod
-    def new(cls, num_bits, offset=0):
+    def new(cls, num_bits: int, offset: int = 0) -> NullBitmap:
         bitmap = bytearray(cls._num_bytes(num_bits, offset))
         return cls(bitmap, offset)
 
     @classmethod
-    def from_buffer(cls, buffer, num_bits, offset=0):
+    def from_buffer(
+        cls, buffer: io.BytesIO, num_bits: int, offset: int = 0
+    ) -> NullBitmap:
         bitmap = bytearray(buffer.read(cls._num_bytes(num_bits, offset)))
         return cls(bitmap, offset)
 
     @classmethod
-    def _num_bytes(cls, num_bits, offset):
+    def _num_bytes(cls, num_bits: int, offset: int) -> int:
         return (num_bits + 7 + offset) // 8
 
-    def flip(self, i):
+    def flip(self, i: int) -> None:
         byte_position, bit_position = self._pos(i)
         self.bitmap[byte_position] |= 1 << bit_position
 
-    def is_flipped(self, i):
+    def is_flipped(self, i: int) -> bool:
         byte_position, bit_position = self._pos(i)
         return bool(self.bitmap[byte_position] & (1 << bit_position))
 
-    def _pos(self, i):
+    def _pos(self, i: int) -> Tuple[int, int]:
         byte_position = (i + self.offset) // 8
         bit_position = (i + self.offset) % 8
         return byte_position, bit_position
 
-    def __bytes__(self):
+    def __bytes__(self) -> bytes:
         return bytes(self.bitmap)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "".join(format(b, "08b") for b in self.bitmap)

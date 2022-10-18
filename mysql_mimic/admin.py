@@ -1,20 +1,18 @@
 import re
+from typing import Optional, Any
 
+from mysql_mimic.session import Session
 from mysql_mimic.charset import CharacterSet
 from mysql_mimic.errors import MysqlError, ErrorCode
 from mysql_mimic.results import ResultColumn, ResultSet, Column
 from mysql_mimic.types import ColumnType
+from mysql_mimic.variables import SystemVariables
 
 
 class Admin:
     """
     Administration Statements (plus some other things)
     https://dev.mysql.com/doc/refman/8.0/en/sql-server-administration-statements.html
-
-    Args:
-        connection_id (int): connection ID
-        session (mysql_mimic.session.Session): session
-        variables (mysql_mimic.variables.SystemVariables): system variables
     """
 
     # Regex for finding "information functions" to replace in SQL statements
@@ -139,18 +137,20 @@ class Admin:
         re.IGNORECASE | re.VERBOSE,
     )
 
-    def __init__(self, connection_id, session, variables):
+    def __init__(
+        self, connection_id: int, session: Session, variables: SystemVariables
+    ):
         self.connection_id = connection_id
         self.session = session
-        self.database = None
-        self.username = None
+        self.database: Optional[str] = None
+        self.username: Optional[str] = None
         self.vars = variables
 
-    def replace_variables(self, sql):
+    def replace_variables(self, sql: str) -> str:
         sql = self.REGEX_INFO_FUNC.sub(self._replace_info_func, sql)
         return self.REGEX_SESSION_VAR.sub(self._replace_session_var, sql)
 
-    def _replace_info_func(self, matchobj):
+    def _replace_info_func(self, matchobj: re.Match) -> str:
         func = (matchobj.group("func") or matchobj.group("current_user")).lower()
         if func == "connection_id":
             return str(self.connection_id)
@@ -164,13 +164,13 @@ class Admin:
             return f"'{self.database}'" if self.database else "NULL"
         raise MysqlError(f"Failed to parse system information function: {func}")
 
-    def _replace_session_var(self, matchobj):
+    def _replace_session_var(self, matchobj: re.Match) -> str:
         var = matchobj.group("var").lower()
         if var in self.vars:
             return f"'{self.vars[var]}'"
         raise MysqlError(f"Unknown variable: {var}", ErrorCode.UNKNOWN_SYSTEM_VARIABLE)
 
-    async def parse(self, sql):
+    async def parse(self, sql: str) -> Optional[ResultSet]:
         m = self.REGEX_CMD.match(sql)
         if not m:
             return None
@@ -187,7 +187,7 @@ class Admin:
             return ResultSet([], [])
         raise MysqlError("Failed to parse command", ErrorCode.PARSE_ERROR)
 
-    async def _parse_set(self, this):
+    async def _parse_set(self, this: str) -> Optional[ResultSet]:
         m = self.REGEX_SET_NAMES.match(this)
         if m:
             return await self._parse_set_names(
@@ -209,11 +209,13 @@ class Admin:
 
         raise MysqlError("Unsupported SET command", ErrorCode.NOT_SUPPORTED_YET)
 
-    async def _set_variable(self, key, val):
+    async def _set_variable(self, key: str, val: Any) -> None:
         self.vars[key] = val
         await self.session.set(**{key: val})
 
-    async def _parse_set_names(self, charset_name, collation_name):
+    async def _parse_set_names(
+        self, charset_name: str, collation_name: str
+    ) -> Optional[ResultSet]:
         await self._set_variable("character_set_client", charset_name)
         await self._set_variable("character_set_connection", charset_name)
         await self._set_variable("character_set_results", charset_name)
@@ -224,13 +226,24 @@ class Admin:
         return ResultSet([], [])
 
     async def _parse_set_variables(
-        self, global_, persist, persist_only, session, user, var_name, value
-    ):  # pylint: disable=unused-argument
+        self,
+        global_: Optional[str],
+        persist: Optional[str],
+        persist_only: Optional[str],
+        session: Optional[str],
+        user: Optional[str],
+        var_name: Optional[str],
+        value: Optional[str],
+    ) -> Optional[ResultSet]:  # pylint: disable=unused-argument
         if global_ or persist or persist_only or user:
             raise MysqlError(
                 "Only setting session variables is supported",
                 ErrorCode.NOT_SUPPORTED_YET,
             )
+
+        assert value is not None
+        assert var_name is not None
+        result: Any
 
         value_lower = value.lower()
         if value_lower in {"true", "on"}:
@@ -256,7 +269,7 @@ class Admin:
         await self._set_variable(var_name, result)
         return ResultSet([], [])
 
-    async def _parse_show(self, this):
+    async def _parse_show(self, this: str) -> Optional[ResultSet]:
         m = self.REGEX_SHOW_VARS.match(this)
         if m:
             return await self._parse_show_variables(
@@ -284,7 +297,7 @@ class Admin:
 
         raise MysqlError("Unsupported SHOW command", ErrorCode.NOT_SUPPORTED_YET)
 
-    def _like_to_regex(self, like):
+    def _like_to_regex(self, like: Optional[str]) -> re.Pattern:
         if like is None:
             return re.compile(r".*")
         like = like.replace("%", ".*")
@@ -292,14 +305,21 @@ class Admin:
         return re.compile(like)
 
     async def _parse_show_columns(
-        self, extended, full, db_name, tbl_name, like
-    ):  # pylint: disable=unused-argument
+        self,
+        extended: bool,
+        full: bool,
+        db_name: Optional[str],
+        tbl_name: Optional[str],
+        like: re.Pattern,
+    ) -> Optional[ResultSet]:  # pylint: disable=unused-argument
         db_name = db_name or self.database
         if not db_name:
             raise MysqlError("No database selected", ErrorCode.NO_DB_ERROR)
 
-        columns = await self.session.show_columns(db_name, tbl_name)
-        columns = [c if isinstance(c, Column) else Column(**c) for c in columns]
+        columns = [
+            c if isinstance(c, Column) else Column(**c)
+            for c in await self.session.show_columns(db_name, tbl_name or "")
+        ]
         columns = [c for c in columns if like.match(c.name)]
 
         result_columns = [
@@ -333,8 +353,8 @@ class Admin:
         return ResultSet(rows=rows, columns=result_columns)
 
     async def _parse_show_index(
-        self, extended, db_name, tbl_name
-    ):  # pylint: disable=unused-argument
+        self, extended: bool, db_name: Optional[str], tbl_name: Optional[str]
+    ) -> ResultSet:  # pylint: disable=unused-argument
         result_columns = [
             ResultColumn("Table", ColumnType.STRING),
             ResultColumn("Non_unique", ColumnType.TINY),
@@ -355,8 +375,8 @@ class Admin:
         return ResultSet(rows=[], columns=result_columns)
 
     async def _parse_show_variables(
-        self, global_, session, like
-    ):  # pylint: disable=unused-argument
+        self, global_: bool, session: bool, like: re.Pattern
+    ) -> ResultSet:  # pylint: disable=unused-argument
         rows = list(self.vars.items())
         rows = [(k, v) for k, v in rows if like.match(k)]
         return ResultSet(
