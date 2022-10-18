@@ -7,7 +7,8 @@ from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 from mysql_mimic.errors import ErrorCode, MysqlError
 from mysql_mimic.prepared import PreparedStatement, REGEX_PARAM
 from mysql_mimic.results import ensure_result_set, ResultSet
-from mysql_mimic import types, packets, Session
+from mysql_mimic import types, packets
+from mysql_mimic.session import Session
 from mysql_mimic.stream import MysqlStream, ConnectionClosed
 from mysql_mimic.types import Capabilities
 from mysql_mimic.utils import seq
