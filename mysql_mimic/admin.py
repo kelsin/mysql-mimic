@@ -1,7 +1,7 @@
 import re
 from typing import Optional, Any
 
-from mysql_mimic import Session
+from mysql_mimic.session import Session
 from mysql_mimic.charset import CharacterSet
 from mysql_mimic.errors import MysqlError, ErrorCode
 from mysql_mimic.results import ResultColumn, ResultSet, Column
