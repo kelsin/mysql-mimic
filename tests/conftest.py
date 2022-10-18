@@ -13,6 +13,7 @@ from typing import (
     Sequence,
     AsyncGenerator,
     Type,
+    Tuple,
 )
 
 import aiomysql
@@ -34,7 +35,7 @@ from mysql_mimic.auth import (
     AuthPlugin,
 )
 from mysql_mimic.connection import Connection
-from mysql_mimic.results import AllowedResult
+from mysql_mimic.results import AllowedResult, Column
 
 
 class PreparedDictCursor(MySQLCursorPrepared):
@@ -57,6 +58,7 @@ class MockSession(Session):
         self.connection: Optional[Connection] = None
         self.last_query_attrs: Optional[Dict[str, str]] = None
         self.users: Optional[Dict[str, User]] = None
+        self.columns: Dict[Tuple[str, str], List[dict]] = {}
 
     async def init(self, connection: Connection) -> None:
         self.connection = connection
@@ -74,6 +76,9 @@ class MockSession(Session):
         if not self.users:
             return User(name=username)
         return self.users.get(username)
+
+    async def show_columns(self, database: str, table: str) -> Sequence[dict]:
+        return self.columns.get((database, table), [])
 
 
 T = TypeVar("T")
@@ -150,16 +155,17 @@ async def mysql_connector_conn(connect: ConnectFixture) -> MySQLConnection:
 
 @pytest_asyncio.fixture
 async def aiomysql_conn(port: int) -> aiomysql.Connection:
-    conn = await aiomysql.connect(port=port)
-    try:
+    async with aiomysql.connect(port=port) as conn:
         yield conn
+
+
+@pytest_asyncio.fixture
+async def sqlalchemy_engine(port: int) -> sqlalchemy.engine.Engine:
+    engine = create_async_engine(url=f"mysql+aiomysql://127.0.0.1:{port}")
+    try:
+        yield engine
     finally:
-        conn.close()
-
-
-@pytest.fixture
-def sqlalchemy_engine(port: int) -> sqlalchemy.engine.Engine:
-    return create_async_engine(url=f"mysql+aiomysql://127.0.0.1:{port}")
+        await engine.dispose()
 
 
 async def query(

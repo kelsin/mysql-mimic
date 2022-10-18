@@ -8,7 +8,7 @@ from mysql_mimic.errors import ErrorCode, MysqlError
 from mysql_mimic.prepared import PreparedStatement, REGEX_PARAM
 from mysql_mimic.results import ensure_result_set, ResultSet
 from mysql_mimic import types, packets, Session
-from mysql_mimic.stream import MysqlStream
+from mysql_mimic.stream import MysqlStream, ConnectionClosed
 from mysql_mimic.types import Capabilities
 from mysql_mimic.utils import seq
 from mysql_mimic.admin import Admin
@@ -240,7 +240,11 @@ class Connection:
     async def command_phase(self) -> None:
         """https://dev.mysql.com/doc/internals/en/command-phase.html"""
         while True:
-            data = await self.stream.read()
+            try:
+                data = await self.stream.read()
+            except ConnectionClosed:
+                logger.info("Connection closed")
+                return
             try:
                 command = data[0]
                 rest = data[1:]

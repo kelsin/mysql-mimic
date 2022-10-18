@@ -1,27 +1,27 @@
 from typing import Tuple, Dict, Any
-from unittest.mock import Mock
 
 import pytest
 
-from mysql_mimic import Session
 from mysql_mimic.charset import CharacterSet
 from mysql_mimic.results import ResultSet
 from mysql_mimic.admin import Admin
 from mysql_mimic.variables import SystemVariables
+from tests.conftest import MockSession
 
 
 @pytest.fixture(scope="module")
-def session() -> Mock:
-    session = Mock(spec=Session)
-    session.show_columns.return_value = [
-        {"name": "col1", "type": "INTEGER"},
-        {"name": "col2", "type": "INTEGER"},
-    ]
-    return session
+def session() -> MockSession:
+    return MockSession()
 
 
 @pytest.fixture(scope="module")
-def admin(session: Mock) -> Admin:
+def admin(session: MockSession) -> Admin:
+    session.columns = {
+        ("db", "table"): [
+            {"name": "col1", "type": "INTEGER"},
+            {"name": "col2", "type": "INTEGER"},
+        ]
+    }
     admin = Admin(connection_id=1, session=session, variables=SystemVariables())
     admin.database = "db"
     return admin
@@ -33,8 +33,8 @@ def admin(session: Mock) -> Admin:
     [
         ("show columns from table", ("db", "table"), 2, 6),
         (
-            " SHOW  EXTENDED  FULL  FIELDS  IN  `table`  IN  `db2` ",
-            ("db2", "table"),
+            " SHOW  EXTENDED  FULL  FIELDS  IN  `table`  IN  `db` ",
+            ("db", "table"),
             2,
             9,
         ),
@@ -46,7 +46,7 @@ def admin(session: Mock) -> Admin:
     ],
 )
 async def test_parse_show_columns(
-    session: Mock,
+    session: MockSession,
     admin: Admin,
     cmd: str,
     expected: Tuple[str, str],
@@ -54,7 +54,6 @@ async def test_parse_show_columns(
     col_length: int,
 ) -> None:
     result = await admin.parse(cmd)
-    session.show_columns.assert_called_with(*expected)
     assert isinstance(result, ResultSet)
     assert len(list(result.rows)) == result_length
     assert len(result.columns) == col_length
