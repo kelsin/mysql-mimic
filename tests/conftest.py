@@ -33,6 +33,7 @@ from mysql_mimic import MysqlServer, Session
 from mysql_mimic.auth import (
     User,
     AuthPlugin,
+    IdentityProvider,
 )
 from mysql_mimic.connection import Connection
 from mysql_mimic.results import AllowedResult, Column
@@ -72,13 +73,20 @@ class MockSession(Session):
             return [(sql,)], ["sql"]
         return self.return_value
 
-    async def get_user(self, username: str) -> Optional[User]:
-        if not self.users:
-            return User(name=username)
-        return self.users.get(username)
-
     async def show_columns(self, database: str, table: str) -> Sequence[dict]:
         return self.columns.get((database, table), [])
+
+
+class MockIdentityProvider(IdentityProvider):
+    def __init__(self, auth_plugins: List[AuthPlugin], users: Dict[str, User]):
+        self.auth_plugins = auth_plugins
+        self.users = users
+
+    def get_plugins(self) -> Sequence[AuthPlugin]:
+        return self.auth_plugins
+
+    async def get_user(self, username: str) -> Optional[User]:
+        return self.users.get(username)
 
 
 T = TypeVar("T")
@@ -113,14 +121,28 @@ def auth_plugins() -> Optional[List[AuthPlugin]]:
     return None
 
 
+@pytest.fixture
+def users() -> Dict[str, User]:
+    return {}
+
+
+@pytest.fixture
+def identity_provider(
+    auth_plugins: Optional[List[AuthPlugin]], users: Dict[str, User]
+) -> Optional[MockIdentityProvider]:
+    if auth_plugins:
+        return MockIdentityProvider(auth_plugins, users)
+    return None
+
+
 @pytest_asyncio.fixture
 async def server(
-    session: MockSession, port: int, auth_plugins: Optional[List[AuthPlugin]]
+    session: MockSession, port: int, identity_provider: Optional[MockIdentityProvider]
 ) -> AsyncGenerator[MysqlServer, None]:
     srv = MysqlServer(
         session_factory=lambda: session,
         port=port,
-        auth_plugins=auth_plugins,
+        identity_provider=identity_provider,
     )
     await srv.start_server()
     asyncio.create_task(srv.serve_forever())

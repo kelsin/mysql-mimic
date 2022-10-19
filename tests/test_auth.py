@@ -1,5 +1,5 @@
 from contextlib import closing
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict
 
 import pytest
 from mysql.connector import DatabaseError
@@ -8,11 +8,11 @@ from mysql.connector.plugins.mysql_clear_password import MySQLClearPasswordAuthP
 
 from mysql_mimic import User, MysqlServer
 from mysql_mimic.auth import (
-    get_mysql_native_password_auth_string,
     MysqlNativePasswordAuthPlugin,
     GullibleAuthPlugin,
     AbstractMysqlClearPasswordAuthPlugin,
     AuthPlugin,
+    MysqlNoLoginAuthPlugin,
 )
 from tests.conftest import query, to_thread, MockSession, ConnectFixture
 
@@ -40,27 +40,34 @@ TEST_PLUGIN_AUTH_USER = "garth_hudson"
 TEST_PLUGIN_AUTH_PASSWORD = TEST_PLUGIN_AUTH_USER
 TEST_PLUGIN_AUTH_PLUGIN = TestPlugin.client_plugin_name
 
+NO_LOGIN_USER = "carmen_and_the_devil"
+NO_LOGIN_PLUGIN = MysqlNoLoginAuthPlugin.name
+
 UNKNOWN_PLUGIN_USER = "richard_manuel"
 NO_PLUGIN_USER = "miss_moses"
 
 
-USERS = {
-    SIMPLE_AUTH_USER: User(name=SIMPLE_AUTH_USER, auth_plugin=GullibleAuthPlugin.name),
-    PASSWORD_AUTH_USER: User(
-        name=PASSWORD_AUTH_USER,
-        auth_string=get_mysql_native_password_auth_string(PASSWORD_AUTH_PASSWORD),
-        auth_plugin=MysqlNativePasswordAuthPlugin.name,
-    ),
-    TEST_PLUGIN_AUTH_USER: User(
-        name=TEST_PLUGIN_AUTH_USER,
-        auth_string=TEST_PLUGIN_AUTH_PASSWORD,
-        auth_plugin=TestPlugin.name,
-    ),
-    UNKNOWN_PLUGIN_USER: User(name=UNKNOWN_PLUGIN_USER, auth_plugin="unknown"),
-    NO_PLUGIN_USER: User(
-        name=NO_PLUGIN_USER,
-    ),
-}
+@pytest.fixture(autouse=True)
+def users() -> Dict[str, User]:
+    return {
+        SIMPLE_AUTH_USER: User(
+            name=SIMPLE_AUTH_USER, auth_plugin=GullibleAuthPlugin.name
+        ),
+        PASSWORD_AUTH_USER: User(
+            name=PASSWORD_AUTH_USER,
+            auth_string=MysqlNativePasswordAuthPlugin.create_auth_string(
+                PASSWORD_AUTH_PASSWORD
+            ),
+            auth_plugin=MysqlNativePasswordAuthPlugin.name,
+        ),
+        TEST_PLUGIN_AUTH_USER: User(
+            name=TEST_PLUGIN_AUTH_USER,
+            auth_string=TEST_PLUGIN_AUTH_PASSWORD,
+            auth_plugin=TestPlugin.name,
+        ),
+        UNKNOWN_PLUGIN_USER: User(name=UNKNOWN_PLUGIN_USER, auth_plugin="unknown"),
+        NO_PLUGIN_USER: User(name=NO_PLUGIN_USER, auth_plugin=NO_LOGIN_PLUGIN),
+    }
 
 
 @pytest.mark.asyncio
@@ -94,7 +101,6 @@ async def test_auth(
     auth_plugin: Optional[str],
 ) -> None:
     session.use_sqlite = True
-    session.users = USERS
     kwargs = {"user": username, "password": password, "auth_plugin": auth_plugin}
     kwargs = {k: v for k, v in kwargs.items() if v is not None}
     with closing(await connect(**kwargs)) as conn:
@@ -115,6 +121,11 @@ async def test_auth(
             (TEST_PLUGIN_AUTH_USER, TEST_PLUGIN_AUTH_PASSWORD, TEST_PLUGIN_AUTH_PLUGIN),
             (PASSWORD_AUTH_USER, PASSWORD_AUTH_PASSWORD, PASSWORD_AUTH_PLUGIN),
         ),
+        (
+            [MysqlNativePasswordAuthPlugin()],
+            (PASSWORD_AUTH_USER, PASSWORD_AUTH_PASSWORD, PASSWORD_AUTH_PLUGIN),
+            (PASSWORD_AUTH_USER, PASSWORD_AUTH_PASSWORD, PASSWORD_AUTH_PLUGIN),
+        ),
     ],
 )
 async def test_change_user(
@@ -126,7 +137,6 @@ async def test_change_user(
     user2: Tuple[str, str, str],
 ) -> None:
     session.use_sqlite = True
-    session.users = USERS
     kwargs1 = {"user": user1[0], "password": user1[1], "auth_plugin": user1[2]}
     kwargs1 = {k: v for k, v in kwargs1.items() if v is not None}
 
@@ -144,12 +154,19 @@ async def test_change_user(
     "auth_plugins,username,password,auth_plugin,msg",
     [
         ([GullibleAuthPlugin()], None, None, None, "User  does not exist"),
-        (None, "unknown", None, None, "User unknown does not exist"),
         (
             [TestPlugin()],
             PASSWORD_AUTH_USER,
             PASSWORD_AUTH_PASSWORD,
             PASSWORD_AUTH_PLUGIN,
+            "Access denied",
+        ),
+        ([MysqlNoLoginAuthPlugin()], NO_PLUGIN_USER, None, None, "Access denied"),
+        (
+            [GullibleAuthPlugin(), MysqlNoLoginAuthPlugin()],
+            NO_PLUGIN_USER,
+            None,
+            None,
             "Access denied",
         ),
     ],
@@ -165,7 +182,6 @@ async def test_access_denied(
     msg: str,
 ) -> None:
     session.use_sqlite = True
-    session.users = USERS
     kwargs = {"user": username, "password": password, "auth_plugin": auth_plugin}
     kwargs = {k: v for k, v in kwargs.items() if v is not None}
 
