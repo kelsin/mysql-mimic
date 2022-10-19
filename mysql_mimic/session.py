@@ -1,6 +1,4 @@
-from typing import Dict, TYPE_CHECKING, Optional, Any, Sequence, Union
-
-from mysql_mimic.auth import User
+from typing import Dict, TYPE_CHECKING, Any, Sequence, Union
 
 if TYPE_CHECKING:
     from mysql_mimic.results import AllowedResult, Column
@@ -51,17 +49,6 @@ class Session:
         Args:
             connection: connection of the session
         """
-
-    async def get_user(self, username: str) -> Optional[User]:
-        """
-        Get a user by username.
-
-        This is used during authentication.
-
-        Returns:
-            user
-        """
-        return User(name=username)
 
     async def set(self, **kwargs: Dict[str, Any]) -> None:
         """

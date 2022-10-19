@@ -1,8 +1,8 @@
 import asyncio
 import random
-from typing import Callable, Sequence, Any, Dict, Optional
+from typing import Callable, Any, Dict, Optional
 
-from mysql_mimic.auth import GullibleAuthPlugin, AuthPlugin
+from mysql_mimic.auth import IdentityProvider, SimpleIdentityProvider
 from mysql_mimic.connection import Connection
 from mysql_mimic.session import Session
 from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
@@ -25,13 +25,8 @@ class MysqlServer:
         server_id: set a unique server ID. This is used to generate globally unique
             connection IDs. This should be an integer between 0 and 65535.
             If left as None, a random server ID will be generated.
-        auth_plugins:
-            Authentication plugins to register. Defaults to `GullibleAuthPlugin`, which just
-            blindly accepts whatever `username` is given by the client.
-
-            The first plugin in this list is the default authentication plugin, which the server
-            will optimistically use when creating new connections, which can reduce the amount
-            of packets that need to be exchanged during the authentication process.
+        identity_provider: Authentication plugins to register. Defaults to `SimpleIdentityProvider`,
+            which just blindly accepts whatever `username` is given by the client.
 
         **kwargs: extra keyword args passed to the asyncio start server command
     """
@@ -45,13 +40,13 @@ class MysqlServer:
         session_factory: Callable[[], Session] = Session,
         capabilities: Capabilities = DEFAULT_SERVER_CAPABILITIES,
         server_id: int = None,
-        auth_plugins: Sequence[AuthPlugin] = None,
+        identity_provider: IdentityProvider = None,
         **serve_kwargs: Any,
     ):
         self.session_factory = session_factory
         self.capabilities = capabilities
         self.server_id = server_id or self._get_server_id()
-        self.auth_plugins = auth_plugins or [GullibleAuthPlugin()]
+        self.identity_provider = identity_provider or SimpleIdentityProvider()
 
         self._connection_seq = seq(self._MAX_CONNECTION_SEQ)
         self._connections: Dict[int, Connection] = {}
@@ -67,7 +62,7 @@ class MysqlServer:
             session=self.session_factory(),
             server_capabilities=self.capabilities,
             connection_id=connection_id,
-            auth_plugins=self.auth_plugins,
+            identity_provider=self.identity_provider,
         )
         self._connections[connection_id] = connection
         try:

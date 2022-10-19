@@ -1,7 +1,14 @@
 import logging
-from typing import Sequence, Optional, Dict, Any, Iterator
+from typing import Optional, Dict, Any, Iterator
 
-from mysql_mimic.auth import AuthInfo, Forbidden, Success, AuthPlugin, AuthState
+from mysql_mimic.auth import (
+    AuthInfo,
+    Forbidden,
+    Success,
+    AuthPlugin,
+    AuthState,
+    IdentityProvider,
+)
 from mysql_mimic.charset import CharacterSet
 from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 from mysql_mimic.errors import ErrorCode, MysqlError
@@ -26,28 +33,18 @@ class Connection:
         stream: MysqlStream,
         connection_id: int,
         session: Session,
-        auth_plugins: Sequence[AuthPlugin],
+        identity_provider: IdentityProvider,
         server_capabilities: Capabilities = DEFAULT_SERVER_CAPABILITIES,
     ):
-        """
-        Client connection.
-
-        Args:
-            stream: stream to use for writing/reading
-            connection_id: 32 bit connection ID
-            session: session
-            auth_plugins: authentication plugins to provide
-            server_capabilities: server capability flags
-        """
         self.stream = stream
         self.session = session
         self.connection_id = connection_id
-        self.auth_plugins = {plugin.name: plugin for plugin in auth_plugins}
-        self.default_auth_plugin = auth_plugins[0]
+        self.identity_provider = identity_provider
 
         # Authentication plugins can reuse the initial handshake data.
         # This let's clients reuse the nonce when performing COM_CHANGE_USER, skipping a round trip.
         self.handshake_auth_data: Optional[bytes] = None
+        self.handshake_auth_plugin: Optional[str] = None
 
         self.server_capabilities = server_capabilities
         self.capabilities = Capabilities(0)
@@ -97,8 +94,11 @@ class Connection:
             await self.session.close()
 
     async def connection_phase(self) -> None:
-        auth_data, auth_state = await self.default_auth_plugin.start()
+        default_auth_plugin = self.identity_provider.get_default_plugin()
+        auth_data, auth_state = await default_auth_plugin.start()
         assert isinstance(auth_data, bytes)
+        self.handshake_auth_data = auth_data
+        self.handshake_auth_plugin = default_auth_plugin.name
 
         handshake_v10 = packets.make_handshake_v10(
             capabilities=self.server_capabilities,
@@ -107,7 +107,7 @@ class Connection:
             connection_id=self.connection_id,
             auth_data=auth_data,
             status_flags=self.status_flags,
-            auth_plugin_name=self.default_auth_plugin.name,
+            auth_plugin_name=default_auth_plugin.name,
         )
         await self.stream.write(handshake_v10)
         response = packets.parse_handshake_response_41(
@@ -125,7 +125,7 @@ class Connection:
 
         await self.authenticate(
             auth_state=auth_state,
-            server_plugin=self.default_auth_plugin,
+            server_plugin=default_auth_plugin,
             username=response.username,
             client_plugin_name=response.client_plugin,
             auth_response=response.auth_response,
@@ -165,7 +165,7 @@ class Connection:
         auth_state: Optional[AuthState] = None,
         server_plugin: Optional[AuthPlugin] = None,
     ) -> None:
-        user = await self.session.get_user(username)
+        user = await self.identity_provider.get_user(username)
 
         if not user:
             await self.stream.write(
@@ -176,9 +176,11 @@ class Connection:
             )
             return
 
-        user_plugin = self.auth_plugins.get(
-            user.auth_plugin or "", self.default_auth_plugin
+        user_plugin = (
+            self.identity_provider.get_plugin(user.auth_plugin or "")
+            or self.identity_provider.get_default_plugin()
         )
+        assert self.handshake_auth_plugin is not None
         auth_info = AuthInfo(
             username=username,
             data=auth_response,
@@ -186,7 +188,7 @@ class Connection:
             user=user,
             client_plugin_name=client_plugin_name,
             handshake_auth_data=self.handshake_auth_data,
-            handshake_plugin_name=self.default_auth_plugin.name,
+            handshake_plugin_name=self.handshake_auth_plugin,
         )
 
         if (
