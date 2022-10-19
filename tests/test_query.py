@@ -210,6 +210,8 @@ async def test_init(port: int, session: MockSession, server: MysqlServer) -> Non
         assert connection.username == "levon_helm"
         assert connection.client_connect_attrs["program_name"] == "test"
         assert connection.database == "db"
+        connection.username = "robbie_robertson"
+        assert connection.username == "robbie_robertson"
 
 
 @pytest.mark.asyncio

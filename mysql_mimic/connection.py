@@ -79,6 +79,10 @@ class Connection:
     def username(self) -> Optional[str]:
         return self.admin.username
 
+    @username.setter
+    def username(self, username: str) -> None:
+        self.admin.username = username
+
     async def start(self) -> None:
         logger.info("Started new connection: %s", self.connection_id)
         try:
