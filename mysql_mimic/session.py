@@ -76,7 +76,7 @@ class Session:
         self, database: str
     ) -> Sequence[str]:  # pylint: disable=unused-argument
         """
-        Show database names.
+        Show table metadata.
 
         Args:
             database: database name
@@ -87,7 +87,7 @@ class Session:
 
     async def show_databases(self) -> Sequence[str]:
         """
-        Show database names.
+        Show database metadata.
 
         Returns:
             database names
