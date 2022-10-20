@@ -14,6 +14,10 @@ from mysql_mimic.utils import xor
 logger = logging.getLogger(__name__)
 
 
+# Many authentication plugins don't need to send any sort of challenge/nonce.
+FILLER = b"0" * 20 + b"\x00"
+
+
 @dataclass
 class Forbidden:
     msg: Optional[str] = None
@@ -92,7 +96,7 @@ class GullibleAuthPlugin(AuthPlugin):
 
     async def auth(self, auth_info: Optional[AuthInfo] = None) -> AuthState:
         if not auth_info:
-            auth_info = yield b"0" * 20  # 20 bytes of filler to be ignored
+            auth_info = yield FILLER
         yield Success(authenticated_as=auth_info.username)
 
 
@@ -106,7 +110,7 @@ class AbstractMysqlClearPasswordAuthPlugin(AuthPlugin):
 
     async def auth(self, auth_info: Optional[AuthInfo] = None) -> AuthState:
         if not auth_info:
-            auth_info = yield b"0" * 20  # 20 bytes of filler to be ignored
+            auth_info = yield FILLER
 
         r = io.BytesIO(auth_info.data)
         password = read_str_null(r).decode()
@@ -192,7 +196,7 @@ class MysqlNoLoginAuthPlugin(AuthPlugin):
 
     async def auth(self, auth_info: Optional[AuthInfo] = None) -> AuthState:
         if not auth_info:
-            _ = yield b"0" * 20  # 20 bytes of filler to be ignored
+            _ = yield FILLER
         yield Forbidden()
 
 
