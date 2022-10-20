@@ -1,5 +1,5 @@
 import re
-from typing import Optional, Any
+from typing import Optional, Any, Sequence, List
 
 from mysql_mimic.session import Session
 from mysql_mimic.charset import CharacterSet
@@ -132,6 +132,31 @@ class Admin:
         ((INDEX)|(INDEXES)|(KEYS))\s*
         ((FROM)|(IN))\s*(`?(?P<impl_db_name>\w+)`?\.)?`?(?P<tbl_name>\w+)`?\s*
         (((FROM)|(IN))\s*`?(?P<expl_db_name>\w+)`?\s*)?
+        $
+    """,
+        re.IGNORECASE | re.VERBOSE,
+    )
+
+    # Regex for parsing a "SHOW TABLES" statement
+    REGEX_SHOW_TABLES = re.compile(
+        r"""
+        ^\s*
+        ((?P<extended>EXTENDED)\s*)?
+        ((?P<full>FULL)\s*)?
+        TABLES\s*
+        (((FROM)|(IN))\s*`?(?P<db_name>\w+)`?\s*)?
+        (LIKE\s*'(?P<like>[\w%]+)'\s*)?
+        $
+    """,
+        re.IGNORECASE | re.VERBOSE,
+    )
+
+    # Regex for parsing a "SHOW DATABASE" statement
+    REGEX_SHOW_DATABASES = re.compile(
+        r"""
+        ^\s*
+        ((DATABASES)|(SCHEMAS))\s*
+        (LIKE\s*'(?P<like>[\w%]+)'\s*)?
         $
     """,
         re.IGNORECASE | re.VERBOSE,
@@ -286,7 +311,6 @@ class Admin:
                 tbl_name=m.group("tbl_name"),
                 like=self._like_to_regex(m.group("like")),
             )
-
         m = self.REGEX_SHOW_INDEX.match(this)
         if m:
             return await self._parse_show_index(
@@ -294,8 +318,23 @@ class Admin:
                 db_name=m.group("expl_db_name") or m.group("impl_db_name"),
                 tbl_name=m.group("tbl_name"),
             )
+        m = self.REGEX_SHOW_TABLES.match(this)
+        if m:
+            return await self._parse_show_tables(
+                extended=bool(m.group("extended")),
+                full=bool(m.group("full")),
+                db_name=m.group("db_name"),
+                like=self._like_to_regex(m.group("like")),
+            )
+        m = self.REGEX_SHOW_DATABASES.match(this)
+        if m:
+            return await self._parse_show_databases(
+                like=self._like_to_regex(m.group("like")),
+            )
 
-        raise MysqlError("Unsupported SHOW command", ErrorCode.NOT_SUPPORTED_YET)
+        raise MysqlError(
+            f"Unsupported SHOW command: {this}", ErrorCode.NOT_SUPPORTED_YET
+        )
 
     def _like_to_regex(self, like: Optional[str]) -> re.Pattern:
         if like is None:
@@ -373,6 +412,32 @@ class Admin:
             ResultColumn("Expression", ColumnType.STRING),
         ]
         return ResultSet(rows=[], columns=result_columns)
+
+    async def _parse_show_tables(
+        self, extended: bool, full: bool, db_name: Optional[str], like: re.Pattern
+    ) -> ResultSet:  # pylint: disable=unused-argument
+        db_name = db_name or self.database
+
+        if not db_name:
+            raise MysqlError("No database selected", ErrorCode.NO_DB_ERROR)
+
+        rows: List[Sequence[str]] = [
+            (t,) for t in await self.session.show_tables(db_name) if like.match(t)
+        ]
+        columns = [ResultColumn(f"Tables_in_{db_name}", ColumnType.STRING)]
+
+        if full:
+            rows = [(r[0], "BASE TABLE") for r in rows]
+            columns.append(ResultColumn("Table_type", ColumnType.STRING))
+
+        return ResultSet(rows=rows, columns=columns)
+
+    async def _parse_show_databases(self, like: re.Pattern) -> ResultSet:
+        databases = await self.session.show_databases()
+        rows = [(db,) for db in databases if like.match(db)]
+        return ResultSet(
+            rows=rows, columns=[ResultColumn("Database", ColumnType.STRING)]
+        )
 
     async def _parse_show_variables(
         self, global_: bool, session: bool, like: re.Pattern

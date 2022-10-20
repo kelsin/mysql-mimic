@@ -1,4 +1,4 @@
-from typing import Tuple, Dict, Any
+from typing import Dict, Any
 
 import pytest
 
@@ -29,27 +29,33 @@ def admin(session: MockSession) -> Admin:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "cmd,expected,result_length,col_length",
+    "cmd,result_length,col_length",
     [
-        ("show columns from table", ("db", "table"), 2, 6),
+        ("show columns from table", 2, 6),
         (
             " SHOW  EXTENDED  FULL  FIELDS  IN  `table`  IN  `db` ",
-            ("db", "table"),
             2,
             9,
         ),
-        ("show columns from table like '%2'", ("db", "table"), 1, 6),
-        ("show columns from table like 'col1'", ("db", "table"), 1, 6),
-        ("show columns from table like 'col%'", ("db", "table"), 2, 6),
-        ("show columns from table like '%col%'", ("db", "table"), 2, 6),
-        ("show columns from table like '_ol2'", ("db", "table"), 1, 6),
+        ("show columns from table like '%2'", 1, 6),
+        ("show columns from table like 'col1'", 1, 6),
+        ("show columns from table like 'col%'", 2, 6),
+        ("show columns from table like '%col%'", 2, 6),
+        ("show columns from table like '_ol2'", 1, 6),
+        ("show tables from db", 1, 1),
+        ("show full tables from db", 1, 2),
+        ("show tables from db like 'table'", 1, 1),
+        ("show tables from db like 'x'", 0, 1),
+        ("show databases", 1, 1),
+        ("show schemas", 1, 1),
+        ("show databases like 'db'", 1, 1),
+        ("show databases like 'x'", 0, 1),
     ],
 )
-async def test_parse_show_columns(
+async def test_parse_show(
     session: MockSession,
     admin: Admin,
     cmd: str,
-    expected: Tuple[str, str],
     result_length: int,
     col_length: int,
 ) -> None:

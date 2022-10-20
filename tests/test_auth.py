@@ -26,6 +26,7 @@ SIMPLE_AUTH_USER = "levon_helm"
 
 PASSWORD_AUTH_USER = "rick_danko"
 PASSWORD_AUTH_PASSWORD = "nazareth"
+PASSWORD_AUTH_OLD_PASSWORD = "cannonball"
 PASSWORD_AUTH_PLUGIN = MysqlNativePasswordAuthPlugin.client_plugin_name
 
 
@@ -57,6 +58,9 @@ def users() -> Dict[str, User]:
             name=PASSWORD_AUTH_USER,
             auth_string=MysqlNativePasswordAuthPlugin.create_auth_string(
                 PASSWORD_AUTH_PASSWORD
+            ),
+            old_auth_string=MysqlNativePasswordAuthPlugin.create_auth_string(
+                PASSWORD_AUTH_OLD_PASSWORD
             ),
             auth_plugin=MysqlNativePasswordAuthPlugin.name,
         ),
@@ -105,6 +109,32 @@ async def test_auth(
     kwargs = {k: v for k, v in kwargs.items() if v is not None}
     with closing(await connect(**kwargs)) as conn:
         assert await query(conn=conn, sql="SELECT USER() AS a") == [{"a": username}]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "auth_plugins",
+    [
+        [MysqlNativePasswordAuthPlugin()],
+    ],
+)
+async def test_auth_secondary_password(
+    server: MysqlServer,
+    session: MockSession,
+    connect: ConnectFixture,
+    auth_plugins: List[AuthPlugin],
+) -> None:
+    session.use_sqlite = True
+    with closing(
+        await connect(
+            user=PASSWORD_AUTH_USER,
+            password=PASSWORD_AUTH_OLD_PASSWORD,
+            auth_plugin=PASSWORD_AUTH_PLUGIN,
+        )
+    ) as conn:
+        assert await query(conn=conn, sql="SELECT USER() AS a") == [
+            {"a": PASSWORD_AUTH_USER}
+        ]
 
 
 @pytest.mark.asyncio

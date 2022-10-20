@@ -14,6 +14,10 @@ from mysql_mimic.utils import xor
 logger = logging.getLogger(__name__)
 
 
+# Many authentication plugins don't need to send any sort of challenge/nonce.
+FILLER = b"0" * 20 + b"\x00"
+
+
 @dataclass
 class Forbidden:
     msg: Optional[str] = None
@@ -29,6 +33,10 @@ class User:
     name: str
     auth_string: Optional[str] = None
     auth_plugin: Optional[str] = None
+
+    # For plugins that support a primary and secondary password
+    # This is helpful for zero-downtime password rotation
+    old_auth_string: Optional[str] = None
 
 
 @dataclass
@@ -88,7 +96,7 @@ class GullibleAuthPlugin(AuthPlugin):
 
     async def auth(self, auth_info: Optional[AuthInfo] = None) -> AuthState:
         if not auth_info:
-            auth_info = yield b"\x00" * 20  # 20 bytes of filler to be ignored
+            auth_info = yield FILLER
         yield Success(authenticated_as=auth_info.username)
 
 
@@ -102,7 +110,7 @@ class AbstractMysqlClearPasswordAuthPlugin(AuthPlugin):
 
     async def auth(self, auth_info: Optional[AuthInfo] = None) -> AuthState:
         if not auth_info:
-            auth_info = yield b"\x00" * 20  # 20 bytes of filler to be ignored
+            auth_info = yield FILLER
 
         r = io.BytesIO(auth_info.data)
         password = read_str_null(r).decode()
@@ -137,10 +145,11 @@ class MysqlNativePasswordAuthPlugin(AuthPlugin):
             and auth_info.handshake_auth_data
         ):
             # mysql_native_password can reuse the nonce from the initial handshake
-            nonce = auth_info.handshake_auth_data
+            nonce = auth_info.handshake_auth_data.rstrip(b"\x00")
         else:
             nonce = secrets.token_bytes(20)
-            auth_info = yield nonce
+            # The mysql command line client expects a null terminating byte
+            auth_info = yield nonce + b"\x00"
 
         user = auth_info.user
         if self.password_matches(user=user, scramble=auth_info.data, nonce=nonce):
@@ -152,8 +161,10 @@ class MysqlNativePasswordAuthPlugin(AuthPlugin):
         return not scramble and not user.auth_string
 
     def password_matches(self, user: User, scramble: bytes, nonce: bytes) -> bool:
-        return self.empty_password_quickpath(user, scramble) or self.verify_scramble(
-            user.auth_string, scramble, nonce
+        return (
+            self.empty_password_quickpath(user, scramble)
+            or self.verify_scramble(user.auth_string, scramble, nonce)
+            or self.verify_scramble(user.old_auth_string, scramble, nonce)
         )
 
     def verify_scramble(
@@ -185,7 +196,7 @@ class MysqlNoLoginAuthPlugin(AuthPlugin):
 
     async def auth(self, auth_info: Optional[AuthInfo] = None) -> AuthState:
         if not auth_info:
-            _ = yield b"\x00" * 20  # 20 bytes of filler to be ignored
+            _ = yield FILLER
         yield Forbidden()
 
 
