@@ -76,6 +76,12 @@ class MockSession(Session):
     async def show_columns(self, database: str, table: str) -> Sequence[dict]:
         return self.columns.get((database, table), [])
 
+    async def show_tables(self, database: str) -> Sequence[str]:
+        return [table for db, table in self.columns if db == database]
+
+    async def show_databases(self) -> Sequence[str]:
+        return [db for db, _ in self.columns]
+
 
 class MockIdentityProvider(IdentityProvider):
     def __init__(self, auth_plugins: List[AuthPlugin], users: Dict[str, User]):

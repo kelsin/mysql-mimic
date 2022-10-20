@@ -72,6 +72,28 @@ class Session:
         """
         return []
 
+    async def show_tables(
+        self, database: str
+    ) -> Sequence[str]:  # pylint: disable=unused-argument
+        """
+        Show database names.
+
+        Args:
+            database: database name
+        Returns:
+            table names
+        """
+        return []
+
+    async def show_databases(self) -> Sequence[str]:
+        """
+        Show database names.
+
+        Returns:
+            database names
+        """
+        return []
+
     async def rollback(self) -> None:
         """
         Roll back the current transaction, canceling its changes.

@@ -1,5 +1,11 @@
 """Implementation of the mysql server wire protocol"""
-from mysql_mimic.auth import User
-from mysql_mimic.results import ResultColumn, ResultSet
+from mysql_mimic.auth import (
+    User,
+    IdentityProvider,
+    MysqlNativePasswordAuthPlugin,
+    MysqlNoLoginAuthPlugin,
+    AuthPlugin,
+)
+from mysql_mimic.results import AllowedResult, ResultColumn, ResultSet
 from mysql_mimic.session import Session
 from mysql_mimic.server import MysqlServer
