@@ -1,5 +1,6 @@
 import asyncio
 import struct
+from ssl import SSLContext
 
 from mysql_mimic.errors import MysqlError, ErrorCode
 from mysql_mimic.types import uint_3, uint_1
@@ -61,3 +62,15 @@ class MysqlStream:
 
     def reset_seq(self) -> None:
         self.seq.reset()
+
+    async def start_tls(self, ssl: SSLContext) -> None:
+        transport = self.writer.transport
+        protocol = transport.get_protocol()
+        loop = asyncio.get_event_loop()
+        new_transport = await loop.start_tls(
+            transport=transport, protocol=protocol, sslcontext=ssl, server_side=True
+        )
+
+        # This seems to be the easiest way to wrap the socket created by asyncio
+        self.writer._transport = new_transport  # type: ignore # pylint: disable=protected-access
+        self.reader._transport = new_transport  # type: ignore # pylint: disable=protected-access

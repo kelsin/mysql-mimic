@@ -1,4 +1,5 @@
 import logging
+from ssl import SSLContext
 from typing import Optional, Dict, Any, Iterator
 
 from mysql_mimic.auth import (
@@ -12,6 +13,7 @@ from mysql_mimic.auth import (
 from mysql_mimic.charset import CharacterSet
 from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 from mysql_mimic.errors import ErrorCode, MysqlError
+from mysql_mimic.packets import SSLRequest
 from mysql_mimic.prepared import PreparedStatement, REGEX_PARAM
 from mysql_mimic.results import ensure_result_set, ResultSet
 from mysql_mimic import types, packets
@@ -35,11 +37,13 @@ class Connection:
         session: Session,
         identity_provider: IdentityProvider,
         server_capabilities: Capabilities = DEFAULT_SERVER_CAPABILITIES,
+        ssl: Optional[SSLContext] = None,
     ):
         self.stream = stream
         self.session = session
         self.connection_id = connection_id
         self.identity_provider = identity_provider
+        self.ssl = ssl
 
         # Authentication plugins can reuse the initial handshake data.
         # This let's clients reuse the nonce when performing COM_CHANGE_USER, skipping a round trip.
@@ -47,6 +51,9 @@ class Connection:
         self.handshake_auth_plugin: Optional[str] = None
 
         self.server_capabilities = server_capabilities
+        if ssl:
+            self.server_capabilities |= Capabilities.CLIENT_SSL
+
         self.capabilities = Capabilities(0)
         self.status_flags = types.ServerStatus(0)
 
@@ -114,18 +121,26 @@ class Connection:
             auth_plugin_name=default_auth_plugin.name,
         )
         await self.stream.write(handshake_v10)
-        response = packets.parse_handshake_response_41(
+        response = packets.parse_handshake_response(
             capabilities=self.server_capabilities,
             data=await self.stream.read(),
         )
+        if isinstance(response, SSLRequest):
+            assert self.ssl is not None
+            await self.stream.start_tls(self.ssl)
+            response = packets.parse_handshake_response_41(
+                capabilities=self.server_capabilities,
+                data=await self.stream.read(),
+            )
+
         self.capabilities = response.capabilities
         self.max_packet_size = response.max_packet_size
+        self.vars.client_charset = response.client_charset
         self.admin.database = response.database
         self.client_plugin_name = response.client_plugin
         self.client_connect_attrs = response.connect_attrs
         self.zstd_compression_level = response.zstd_compression_level
         self.vars.external_user = response.username
-        self.vars.client_charset = response.client_charset
 
         await self.authenticate(
             auth_state=auth_state,

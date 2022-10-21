@@ -1,6 +1,6 @@
 import io
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, Sequence, Callable, Tuple, List
+from typing import Optional, Dict, Any, Sequence, Callable, Tuple, List, Union
 
 from mysql_mimic.charset import Collation, CharacterSet
 from mysql_mimic.errors import ErrorCode, get_sqlstate, MysqlError
@@ -37,6 +37,13 @@ from mysql_mimic.types import (
     peek,
     ServerStatus,
 )
+
+
+@dataclass
+class SSLRequest:
+    max_packet_size: int
+    capabilities: Capabilities
+    client_charset: CharacterSet
 
 
 @dataclass
@@ -186,9 +193,9 @@ def make_handshake_v10(
     return _concat(*parts)
 
 
-def parse_handshake_response_41(
+def parse_handshake_response(
     capabilities: Capabilities, data: bytes
-) -> HandshakeResponse41:
+) -> Union[HandshakeResponse41, SSLRequest]:
     r = io.BytesIO(data)
 
     client_capabilities = Capabilities(read_uint_4(r))
@@ -198,6 +205,14 @@ def parse_handshake_response_41(
     max_packet_size = read_uint_4(r)
     client_charset = Collation(read_uint_1(r)).charset
     read_str_fixed(r, 23)
+
+    if not peek(r):
+        return SSLRequest(
+            max_packet_size=max_packet_size,
+            capabilities=capabilities,
+            client_charset=client_charset,
+        )
+
     username = client_charset.decode(read_str_null(r))
 
     if Capabilities.CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA in capabilities:
@@ -226,6 +241,14 @@ def parse_handshake_response_41(
     if Capabilities.CLIENT_ZSTD_COMPRESSION_ALGORITHM in capabilities:
         response.zstd_compression_level = read_uint_1(r)
 
+    return response
+
+
+def parse_handshake_response_41(
+    capabilities: Capabilities, data: bytes
+) -> HandshakeResponse41:
+    response = parse_handshake_response(capabilities, data)
+    assert isinstance(response, HandshakeResponse41)
     return response
 
 

@@ -1,5 +1,6 @@
 import asyncio
 import random
+from ssl import SSLContext
 from typing import Callable, Any, Dict, Optional
 
 from mysql_mimic.auth import IdentityProvider, SimpleIdentityProvider
@@ -27,6 +28,7 @@ class MysqlServer:
             If left as None, a random server ID will be generated.
         identity_provider: Authentication plugins to register. Defaults to `SimpleIdentityProvider`,
             which just blindly accepts whatever `username` is given by the client.
+        ssl: SSLContext instance if this server should enable TLS over connections
 
         **kwargs: extra keyword args passed to the asyncio start server command
     """
@@ -41,12 +43,14 @@ class MysqlServer:
         capabilities: Capabilities = DEFAULT_SERVER_CAPABILITIES,
         server_id: int = None,
         identity_provider: IdentityProvider = None,
+        ssl: SSLContext = None,
         **serve_kwargs: Any,
     ):
         self.session_factory = session_factory
         self.capabilities = capabilities
         self.server_id = server_id or self._get_server_id()
         self.identity_provider = identity_provider or SimpleIdentityProvider()
+        self.ssl = ssl
 
         self._connection_seq = seq(self._MAX_CONNECTION_SEQ)
         self._connections: Dict[int, Connection] = {}
@@ -63,6 +67,7 @@ class MysqlServer:
             server_capabilities=self.capabilities,
             connection_id=connection_id,
             identity_provider=self.identity_provider,
+            ssl=self.ssl,
         )
         self._connections[connection_id] = connection
         try:

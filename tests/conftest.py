@@ -2,6 +2,7 @@ import asyncio
 import functools
 import socket
 import sqlite3
+from ssl import SSLContext
 from typing import (
     Optional,
     List,
@@ -141,14 +142,23 @@ def identity_provider(
     return None
 
 
+@pytest.fixture
+def ssl() -> Optional[SSLContext]:
+    return None
+
+
 @pytest_asyncio.fixture
 async def server(
-    session: MockSession, port: int, identity_provider: Optional[MockIdentityProvider]
+    session: MockSession,
+    port: int,
+    identity_provider: Optional[MockIdentityProvider],
+    ssl: Optional[SSLContext],
 ) -> AsyncGenerator[MysqlServer, None]:
     srv = MysqlServer(
         session_factory=lambda: session,
         port=port,
         identity_provider=identity_provider,
+        ssl=ssl,
     )
     await srv.start_server()
     asyncio.create_task(srv.serve_forever())
