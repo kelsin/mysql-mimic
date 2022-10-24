@@ -72,7 +72,6 @@ class MysqlStream:
             protocol=protocol,
             sslcontext=ssl,
             server_side=True,
-            ssl_handshake_timeout=60,
         )
 
         # This seems to be the easiest way to wrap the socket created by asyncio

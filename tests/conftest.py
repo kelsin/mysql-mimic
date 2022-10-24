@@ -145,7 +145,7 @@ async def server(
         ssl=ssl,
     )
     try:
-        await srv.start_server(port=3307)
+        await srv.start_server(port=3306)
     except OSError as e:
         if e.errno == 48:
             # Port already in use.

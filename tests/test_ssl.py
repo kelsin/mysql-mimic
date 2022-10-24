@@ -1,11 +1,10 @@
 import os
-from contextlib import closing
-from ssl import SSLContext, PROTOCOL_TLS_SERVER
+from ssl import SSLContext, PROTOCOL_TLS_SERVER, create_default_context
 
+import aiomysql
 import pytest
 
-from mysql_mimic import MysqlServer
-from tests.conftest import query, MockSession, ConnectFixture
+from tests.conftest import MockSession, ConnectFixture
 
 CURRENT_DIR = os.path.dirname(__file__)
 SSL_CERT = os.path.join(CURRENT_DIR, "fixtures/certificate.pem")
@@ -21,14 +20,13 @@ def ssl() -> SSLContext:
 
 @pytest.mark.asyncio
 async def test_ssl(
-    server: MysqlServer,
     session: MockSession,
     connect: ConnectFixture,
+    port: int,
 ) -> None:
     session.use_sqlite = True
 
-    with closing(await connect()) as conn:
-        assert await query(conn=conn, sql="SELECT 1 AS a") == [{"a": 1}]
-
-    with closing(await connect(ssl_disabled=True)) as conn:
-        assert await query(conn=conn, sql="SELECT 1 AS a") == [{"a": 1}]
+    async with aiomysql.connect(port=port, ssl=create_default_context()) as conn:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute("SELECT 1 AS a")
+            assert await cur.fetchall() == [{"a": 1}]
