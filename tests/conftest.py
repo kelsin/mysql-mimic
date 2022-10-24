@@ -1,6 +1,5 @@
 import asyncio
 import functools
-import socket
 import sqlite3
 from ssl import SSLContext
 from typing import (
@@ -105,22 +104,9 @@ async def to_thread(func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
     return await loop.run_in_executor(None, func_call)
 
 
-def get_free_port() -> int:
-    sock = socket.socket()
-    sock.bind(("", 0))
-    port = sock.getsockname()[1]
-    sock.close()
-    return port
-
-
 @pytest.fixture
 def session() -> MockSession:
     return MockSession()
-
-
-@pytest.fixture(scope="session")
-def free_port() -> int:
-    return get_free_port()
 
 
 @pytest.fixture
@@ -150,7 +136,6 @@ def ssl() -> Optional[SSLContext]:
 @pytest_asyncio.fixture
 async def server(
     session: MockSession,
-    free_port: int,
     identity_provider: Optional[MockIdentityProvider],
     ssl: Optional[SSLContext],
 ) -> AsyncGenerator[MysqlServer, None]:
@@ -160,13 +145,13 @@ async def server(
         ssl=ssl,
     )
     try:
-        await srv.start_server(port=free_port)
+        await srv.start_server(port=3307)
     except OSError as e:
         if e.errno == 48:
             # Port already in use.
             # This should only happen if there is a race condition between concurrent test runs.
             # Getting a new free port can be slow, so we optimistically try to use the free_port fixture first.
-            await srv.start_server(port=get_free_port())
+            await srv.start_server(port=0)
         else:
             raise
     asyncio.create_task(srv.serve_forever())
