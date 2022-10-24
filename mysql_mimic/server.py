@@ -1,7 +1,8 @@
 import asyncio
 import random
 from ssl import SSLContext
-from typing import Callable, Any, Dict, Optional
+from socket import socket
+from typing import Callable, Any, Dict, Optional, Sequence
 
 from mysql_mimic.auth import IdentityProvider, SimpleIdentityProvider
 from mysql_mimic.connection import Connection
@@ -55,7 +56,7 @@ class MysqlServer:
         self._connection_seq = seq(self._MAX_CONNECTION_SEQ)
         self._connections: Dict[int, Connection] = {}
         self._serve_kwargs = serve_kwargs
-        self._server: Optional[asyncio.AbstractServer] = None
+        self._server: Optional[asyncio.base_events.Server] = None
 
     async def _client_connected_cb(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -164,3 +165,9 @@ class MysqlServer:
         """Wait until the `close` method completes."""
         if self._server:
             await self._server.wait_closed()
+
+    def sockets(self) -> Sequence[socket]:
+        """Get sockets the server is listening on."""
+        if self._server:
+            return self._server.sockets
+        return ()

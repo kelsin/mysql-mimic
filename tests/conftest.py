@@ -37,7 +37,7 @@ from mysql_mimic.auth import (
     IdentityProvider,
 )
 from mysql_mimic.connection import Connection
-from mysql_mimic.results import AllowedResult, Column
+from mysql_mimic.results import AllowedResult
 
 
 class PreparedDictCursor(MySQLCursorPrepared):
@@ -118,8 +118,8 @@ def session() -> MockSession:
     return MockSession()
 
 
-@pytest.fixture
-def port() -> int:
+@pytest.fixture(scope="session")
+def free_port() -> int:
     return get_free_port()
 
 
@@ -150,23 +150,36 @@ def ssl() -> Optional[SSLContext]:
 @pytest_asyncio.fixture
 async def server(
     session: MockSession,
-    port: int,
+    free_port: int,
     identity_provider: Optional[MockIdentityProvider],
     ssl: Optional[SSLContext],
 ) -> AsyncGenerator[MysqlServer, None]:
     srv = MysqlServer(
         session_factory=lambda: session,
-        port=port,
         identity_provider=identity_provider,
         ssl=ssl,
     )
-    await srv.start_server()
+    try:
+        await srv.start_server(port=free_port)
+    except OSError as e:
+        if e.errno == 48:
+            # Port already in use.
+            # This should only happen if there is a race condition between concurrent test runs.
+            # Getting a new free port can be slow, so we optimistically try to use the free_port fixture first.
+            await srv.start_server(port=get_free_port())
+        else:
+            raise
     asyncio.create_task(srv.serve_forever())
     try:
         yield srv
     finally:
         srv.close()
         await srv.wait_closed()
+
+
+@pytest.fixture
+def port(server: MysqlServer) -> int:
+    return server.sockets()[0].getsockname()[1]
 
 
 ConnectFixture = Callable[..., Awaitable[MySQLConnection]]
