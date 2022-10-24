@@ -68,7 +68,11 @@ class MysqlStream:
         protocol = transport.get_protocol()
         loop = asyncio.get_event_loop()
         new_transport = await loop.start_tls(
-            transport=transport, protocol=protocol, sslcontext=ssl, server_side=True
+            transport=transport,
+            protocol=protocol,
+            sslcontext=ssl,
+            server_side=True,
+            ssl_handshake_timeout=60,
         )
 
         # This seems to be the easiest way to wrap the socket created by asyncio
