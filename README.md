@@ -14,10 +14,9 @@ MySQL-Mimic doesn't parse SQL - it only handles the wire protocol. For parsing, 
 pip install mysql-mimic
 ```
 
-# Usage
+## Usage
 
-This library is meant to be used as the basis for a proxy SQL service. A minimal
-use case might look like this:
+A minimal use case might look like this:
 
 ```python
 import asyncio
@@ -44,16 +43,29 @@ if __name__ == "__main__":
 
 See [examples](./examples) for more examples.
 
-## Todo
+## Authentication
 
-- Add support for (at least) the `mysql_native_password` authentication method
-  with another callback.
-- *Eventually* Compression support
-- *Eventually* SSL support
+MySQL-mimic has built in support for several standard MySQL authentication plugins:
+- [mysql_native_password](https://dev.mysql.com/doc/refman/8.0/en/native-pluggable-authentication.html)
+  - The client sends hashed passwords to the server, and the server stores hashed passwords. See the documentation for more details on how this works.
+- [mysql_clear_password](https://dev.mysql.com/doc/refman/8.0/en/cleartext-pluggable-authentication.html)
+  - The client sends passwords to the server as clear text, without hashing or encryption.
+  - This is typically used as the client plugin for a custom server plugin. As such, MySQL-mimic provides an abstract class, `mysql_mimic.auth.AbstractMysqlClearPasswordAuthPlugin`, which can be extended.
+- [mysql_no_login](https://dev.mysql.com/doc/refman/8.0/en/no-login-pluggable-authentication.html)
+  - The server prevents clients from directly authenticating as an account. See the documentation for relevant use cases. 
+
+By default, a session naively accepts whatever username the client provides.
+
+Custom plugins can be created by extending [`mysql_mimic.auth.AuthPlugin`](mysql_mimic/auth.py).
+
+Plugins are provided to the server by implementing [`mysql_mimic.IdentityProvider`](mysql_mimic/auth.py), which configures all available plugins and a callback for fetching users.
 
 ## Development
 
-You can install dependencies with `make deps`. You can format your code with
-`make format`. You can lint with `make lint`. You can run tests with `make
-test`. This will build a coverage report in `./htmlcov/index.html`. You can
-build a pip package with `make build`.
+You can install dependencies with `make deps`. 
+You can format your code with `make format`. 
+You can lint with `make lint`. 
+You can check type annotations with `make types`.
+You can run tests with `make test`. This will build a coverage report in `./htmlcov/index.html`. 
+You can run all the checks with `make check`.
+You can build a pip package with `make build`.

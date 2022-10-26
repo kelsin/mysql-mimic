@@ -4,6 +4,8 @@ import sqlite3
 
 from mysql_mimic import MysqlServer, Session
 
+logger = logging.getLogger(__name__)
+
 
 class SqliteProxySession(Session):
     def __init__(self):
@@ -13,7 +15,7 @@ class SqliteProxySession(Session):
         self.conn.execute("INSERT INTO x VALUES (2)")
 
     async def query(self, sql, attrs):
-        print(f"Received query: {sql}")
+        logger.info("Received query: %s", sql)
         cursor = self.conn.cursor()
         cursor.execute(sql)
         try:
