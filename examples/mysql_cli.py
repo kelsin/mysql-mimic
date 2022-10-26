@@ -27,7 +27,7 @@ class SqliteProxySession(Session):
 
 
 async def main():
-    logging.basicConfig()
+    logging.basicConfig(level=logging.INFO)
     server = MysqlServer(session_factory=SqliteProxySession)
     await server.start_unix_server(
         # By default, the `mysql` command tries to connect to this socket
