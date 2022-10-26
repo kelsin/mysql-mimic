@@ -48,17 +48,19 @@ See [examples](./examples) for more examples.
 MySQL-mimic has built in support for several standard MySQL authentication plugins:
 - [mysql_native_password](https://dev.mysql.com/doc/refman/8.0/en/native-pluggable-authentication.html)
   - The client sends hashed passwords to the server, and the server stores hashed passwords. See the documentation for more details on how this works.
+  - [example](examples/mysql_native_password.py)
 - [mysql_clear_password](https://dev.mysql.com/doc/refman/8.0/en/cleartext-pluggable-authentication.html)
   - The client sends passwords to the server as clear text, without hashing or encryption.
   - This is typically used as the client plugin for a custom server plugin. As such, MySQL-mimic provides an abstract class, `mysql_mimic.auth.AbstractMysqlClearPasswordAuthPlugin`, which can be extended.
+  - [example](examples/mysql_clear_password.py)
 - [mysql_no_login](https://dev.mysql.com/doc/refman/8.0/en/no-login-pluggable-authentication.html)
   - The server prevents clients from directly authenticating as an account. See the documentation for relevant use cases. 
 
 By default, a session naively accepts whatever username the client provides.
 
-Custom plugins can be created by extending [`mysql_mimic.auth.AuthPlugin`](mysql_mimic/auth.py).
-
 Plugins are provided to the server by implementing [`mysql_mimic.IdentityProvider`](mysql_mimic/auth.py), which configures all available plugins and a callback for fetching users.
+
+Custom plugins can be created by extending [`mysql_mimic.auth.AuthPlugin`](mysql_mimic/auth.py).
 
 ## Development
 
