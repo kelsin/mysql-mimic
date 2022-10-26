@@ -65,9 +65,15 @@ Custom plugins can be created by extending [`mysql_mimic.auth.AuthPlugin`](mysql
 ## Development
 
 You can install dependencies with `make deps`. 
+
 You can format your code with `make format`. 
+
 You can lint with `make lint`. 
+
 You can check type annotations with `make types`.
+
 You can run tests with `make test`. This will build a coverage report in `./htmlcov/index.html`. 
+
 You can run all the checks with `make check`.
+
 You can build a pip package with `make build`.
