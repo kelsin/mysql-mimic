@@ -1,7 +1,7 @@
 import asyncio
 import functools
-import socket
 import sqlite3
+from ssl import SSLContext
 from typing import (
     Optional,
     List,
@@ -36,7 +36,7 @@ from mysql_mimic.auth import (
     IdentityProvider,
 )
 from mysql_mimic.connection import Connection
-from mysql_mimic.results import AllowedResult, Column
+from mysql_mimic.results import AllowedResult
 
 
 class PreparedDictCursor(MySQLCursorPrepared):
@@ -104,22 +104,9 @@ async def to_thread(func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
     return await loop.run_in_executor(None, func_call)
 
 
-def get_free_port() -> int:
-    sock = socket.socket()
-    sock.bind(("", 0))
-    port = sock.getsockname()[1]
-    sock.close()
-    return port
-
-
 @pytest.fixture
 def session() -> MockSession:
     return MockSession()
-
-
-@pytest.fixture
-def port() -> int:
-    return get_free_port()
 
 
 @pytest.fixture
@@ -141,22 +128,43 @@ def identity_provider(
     return None
 
 
+@pytest.fixture
+def ssl() -> Optional[SSLContext]:
+    return None
+
+
 @pytest_asyncio.fixture
 async def server(
-    session: MockSession, port: int, identity_provider: Optional[MockIdentityProvider]
+    session: MockSession,
+    identity_provider: Optional[MockIdentityProvider],
+    ssl: Optional[SSLContext],
 ) -> AsyncGenerator[MysqlServer, None]:
     srv = MysqlServer(
         session_factory=lambda: session,
-        port=port,
         identity_provider=identity_provider,
+        ssl=ssl,
     )
-    await srv.start_server()
+    try:
+        await srv.start_server(port=3307)
+    except OSError as e:
+        if e.errno == 48:
+            # Port already in use.
+            # This should only happen if there is a race condition between concurrent test runs.
+            # Getting a new free port can be slow, so we optimistically try to use the free_port fixture first.
+            await srv.start_server(port=0)
+        else:
+            raise
     asyncio.create_task(srv.serve_forever())
     try:
         yield srv
     finally:
         srv.close()
         await srv.wait_closed()
+
+
+@pytest.fixture
+def port(server: MysqlServer) -> int:
+    return server.sockets()[0].getsockname()[1]
 
 
 ConnectFixture = Callable[..., Awaitable[MySQLConnection]]

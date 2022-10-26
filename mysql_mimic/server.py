@@ -1,6 +1,8 @@
 import asyncio
 import random
-from typing import Callable, Any, Dict, Optional
+from ssl import SSLContext
+from socket import socket
+from typing import Callable, Any, Dict, Optional, Sequence
 
 from mysql_mimic.auth import IdentityProvider, SimpleIdentityProvider
 from mysql_mimic.connection import Connection
@@ -27,6 +29,7 @@ class MysqlServer:
             If left as None, a random server ID will be generated.
         identity_provider: Authentication plugins to register. Defaults to `SimpleIdentityProvider`,
             which just blindly accepts whatever `username` is given by the client.
+        ssl: SSLContext instance if this server should enable TLS over connections
 
         **kwargs: extra keyword args passed to the asyncio start server command
     """
@@ -41,17 +44,19 @@ class MysqlServer:
         capabilities: Capabilities = DEFAULT_SERVER_CAPABILITIES,
         server_id: int = None,
         identity_provider: IdentityProvider = None,
+        ssl: SSLContext = None,
         **serve_kwargs: Any,
     ):
         self.session_factory = session_factory
         self.capabilities = capabilities
         self.server_id = server_id or self._get_server_id()
         self.identity_provider = identity_provider or SimpleIdentityProvider()
+        self.ssl = ssl
 
         self._connection_seq = seq(self._MAX_CONNECTION_SEQ)
         self._connections: Dict[int, Connection] = {}
         self._serve_kwargs = serve_kwargs
-        self._server: Optional[asyncio.AbstractServer] = None
+        self._server: Optional[asyncio.base_events.Server] = None
 
     async def _client_connected_cb(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -63,6 +68,7 @@ class MysqlServer:
             server_capabilities=self.capabilities,
             connection_id=connection_id,
             identity_provider=self.identity_provider,
+            ssl=self.ssl,
         )
         self._connections[connection_id] = connection
         try:
@@ -159,3 +165,9 @@ class MysqlServer:
         """Wait until the `close` method completes."""
         if self._server:
             await self._server.wait_closed()
+
+    def sockets(self) -> Sequence[socket]:
+        """Get sockets the server is listening on."""
+        if self._server:
+            return self._server.sockets
+        return ()
