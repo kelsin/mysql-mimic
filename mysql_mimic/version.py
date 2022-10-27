@@ -1,6 +1,6 @@
 """mysql-mimic version information"""
 
-__version__ = "1.1.2"
+__version__ = "1.1.3"
 
 
 def main(name: str) -> None:
