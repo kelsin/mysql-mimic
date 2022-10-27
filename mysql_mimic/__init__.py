@@ -2,8 +2,8 @@
 from mysql_mimic.auth import (
     User,
     IdentityProvider,
-    MysqlNativePasswordAuthPlugin,
-    MysqlNoLoginAuthPlugin,
+    NativePasswordAuthPlugin,
+    NoLoginAuthPlugin,
     AuthPlugin,
 )
 from mysql_mimic.results import AllowedResult, ResultColumn, ResultSet

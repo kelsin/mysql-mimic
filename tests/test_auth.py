@@ -8,11 +8,11 @@ from mysql.connector.plugins.mysql_clear_password import MySQLClearPasswordAuthP
 
 from mysql_mimic import User, MysqlServer
 from mysql_mimic.auth import (
-    MysqlNativePasswordAuthPlugin,
+    NativePasswordAuthPlugin,
     GullibleAuthPlugin,
-    AbstractMysqlClearPasswordAuthPlugin,
+    AbstractClearPasswordAuthPlugin,
     AuthPlugin,
-    MysqlNoLoginAuthPlugin,
+    NoLoginAuthPlugin,
 )
 from tests.conftest import query, to_thread, MockSession, ConnectFixture
 
@@ -27,10 +27,10 @@ SIMPLE_AUTH_USER = "levon_helm"
 PASSWORD_AUTH_USER = "rick_danko"
 PASSWORD_AUTH_PASSWORD = "nazareth"
 PASSWORD_AUTH_OLD_PASSWORD = "cannonball"
-PASSWORD_AUTH_PLUGIN = MysqlNativePasswordAuthPlugin.client_plugin_name
+PASSWORD_AUTH_PLUGIN = NativePasswordAuthPlugin.client_plugin_name
 
 
-class TestPlugin(AbstractMysqlClearPasswordAuthPlugin):
+class TestPlugin(AbstractClearPasswordAuthPlugin):
     name = "test_plugin"
 
     async def check(self, username: str, password: str) -> Optional[str]:
@@ -42,7 +42,7 @@ TEST_PLUGIN_AUTH_PASSWORD = TEST_PLUGIN_AUTH_USER
 TEST_PLUGIN_AUTH_PLUGIN = TestPlugin.client_plugin_name
 
 NO_LOGIN_USER = "carmen_and_the_devil"
-NO_LOGIN_PLUGIN = MysqlNoLoginAuthPlugin.name
+NO_LOGIN_PLUGIN = NoLoginAuthPlugin.name
 
 UNKNOWN_PLUGIN_USER = "richard_manuel"
 NO_PLUGIN_USER = "miss_moses"
@@ -56,13 +56,13 @@ def users() -> Dict[str, User]:
         ),
         PASSWORD_AUTH_USER: User(
             name=PASSWORD_AUTH_USER,
-            auth_string=MysqlNativePasswordAuthPlugin.create_auth_string(
+            auth_string=NativePasswordAuthPlugin.create_auth_string(
                 PASSWORD_AUTH_PASSWORD
             ),
-            old_auth_string=MysqlNativePasswordAuthPlugin.create_auth_string(
+            old_auth_string=NativePasswordAuthPlugin.create_auth_string(
                 PASSWORD_AUTH_OLD_PASSWORD
             ),
-            auth_plugin=MysqlNativePasswordAuthPlugin.name,
+            auth_plugin=NativePasswordAuthPlugin.name,
         ),
         TEST_PLUGIN_AUTH_USER: User(
             name=TEST_PLUGIN_AUTH_USER,
@@ -79,7 +79,7 @@ def users() -> Dict[str, User]:
     "auth_plugins,username,password,auth_plugin",
     [
         (
-            [MysqlNativePasswordAuthPlugin()],
+            [NativePasswordAuthPlugin()],
             PASSWORD_AUTH_USER,
             PASSWORD_AUTH_PASSWORD,
             PASSWORD_AUTH_PLUGIN,
@@ -115,7 +115,7 @@ async def test_auth(
 @pytest.mark.parametrize(
     "auth_plugins",
     [
-        [MysqlNativePasswordAuthPlugin()],
+        [NativePasswordAuthPlugin()],
     ],
 )
 async def test_auth_secondary_password(
@@ -142,7 +142,7 @@ async def test_auth_secondary_password(
     "auth_plugins,user1,user2",
     [
         (
-            [MysqlNativePasswordAuthPlugin(), TestPlugin()],
+            [NativePasswordAuthPlugin(), TestPlugin()],
             (PASSWORD_AUTH_USER, PASSWORD_AUTH_PASSWORD, PASSWORD_AUTH_PLUGIN),
             (TEST_PLUGIN_AUTH_USER, TEST_PLUGIN_AUTH_PASSWORD, TEST_PLUGIN_AUTH_PLUGIN),
         ),
@@ -152,7 +152,7 @@ async def test_auth_secondary_password(
             (PASSWORD_AUTH_USER, PASSWORD_AUTH_PASSWORD, PASSWORD_AUTH_PLUGIN),
         ),
         (
-            [MysqlNativePasswordAuthPlugin()],
+            [NativePasswordAuthPlugin()],
             (PASSWORD_AUTH_USER, PASSWORD_AUTH_PASSWORD, PASSWORD_AUTH_PLUGIN),
             (PASSWORD_AUTH_USER, PASSWORD_AUTH_PASSWORD, PASSWORD_AUTH_PLUGIN),
         ),
@@ -191,9 +191,9 @@ async def test_change_user(
             PASSWORD_AUTH_PLUGIN,
             "Access denied",
         ),
-        ([MysqlNoLoginAuthPlugin()], NO_PLUGIN_USER, None, None, "Access denied"),
+        ([NoLoginAuthPlugin()], NO_PLUGIN_USER, None, None, "Access denied"),
         (
-            [GullibleAuthPlugin(), MysqlNoLoginAuthPlugin()],
+            [GullibleAuthPlugin(), NoLoginAuthPlugin()],
             NO_PLUGIN_USER,
             None,
             None,

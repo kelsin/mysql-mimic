@@ -100,7 +100,7 @@ class GullibleAuthPlugin(AuthPlugin):
         yield Success(authenticated_as=auth_info.username)
 
 
-class AbstractMysqlClearPasswordAuthPlugin(AuthPlugin):
+class AbstractClearPasswordAuthPlugin(AuthPlugin):
     """
     Abstract class for implementing the server-side of the standard client plugin "mysql_clear_password".
     """
@@ -124,7 +124,7 @@ class AbstractMysqlClearPasswordAuthPlugin(AuthPlugin):
         return username
 
 
-class MysqlNativePasswordAuthPlugin(AuthPlugin):
+class NativePasswordAuthPlugin(AuthPlugin):
     """
     Standard plugin that uses a password hashing method.
 
@@ -185,7 +185,7 @@ class MysqlNativePasswordAuthPlugin(AuthPlugin):
         return sha1(sha1(password.encode("utf-8")).digest()).hexdigest()
 
 
-class MysqlNoLoginAuthPlugin(AuthPlugin):
+class NoLoginAuthPlugin(AuthPlugin):
     """
     Standard plugin that prevents all clients from direct login.
 
@@ -209,7 +209,7 @@ class IdentityProvider:
     """
 
     def get_plugins(self) -> Sequence[AuthPlugin]:
-        return [MysqlNativePasswordAuthPlugin(), MysqlNoLoginAuthPlugin()]
+        return [NativePasswordAuthPlugin(), NoLoginAuthPlugin()]
 
     async def get_user(self, username: str) -> Optional[User]:
         return None
