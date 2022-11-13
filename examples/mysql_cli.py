@@ -1,34 +1,46 @@
 import logging
 import asyncio
-import sqlite3
+from sqlglot.executor import execute
+from sqlglot.optimizer import optimize
 
 from mysql_mimic import MysqlServer, Session
 
 logger = logging.getLogger(__name__)
 
 
-class SqliteProxySession(Session):
+class MySession(Session):
     def __init__(self):
-        self.conn = sqlite3.connect(":memory:")
-        self.conn.execute("CREATE TABLE x (a INT)")
-        self.conn.execute("INSERT INTO x VALUES (1)")
-        self.conn.execute("INSERT INTO x VALUES (2)")
+        super().__init__()
+        self._data = {
+            "test": {
+                "x": [
+                    {"a": 1},
+                    {"a": 2},
+                    {"a": 3},
+                ]
+            }
+        }
+        self._schema = {
+            "test": {
+                "x": {
+                    "a": "INT",
+                }
+            }
+        }
 
-    async def query(self, sql, attrs):
+    async def handle_query(self, expression, sql, attrs):
         logger.info("Received query: %s", sql)
-        cursor = self.conn.cursor()
-        cursor.execute(sql)
-        try:
-            rows = cursor.fetchall()
-            columns = cursor.description and [c[0] for c in cursor.description]
-            return rows, columns
-        finally:
-            cursor.close()
+        expression = optimize(expression, schema=self._schema, db=self.database)
+        result = execute(expression.sql(), schema=self._schema, tables=self._data)
+        return result.rows, result.columns
+
+    async def schema(self):
+        return self._schema
 
 
 async def main():
     logging.basicConfig(level=logging.INFO)
-    server = MysqlServer(session_factory=SqliteProxySession)
+    server = MysqlServer(session_factory=MySession)
     await server.start_unix_server(
         # By default, the `mysql` command tries to connect to this socket
         path="/tmp/mysql.sock"

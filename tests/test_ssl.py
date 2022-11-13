@@ -32,7 +32,6 @@ async def test_ssl(
     connect: ConnectFixture,
     port: int,
 ) -> None:
-    session.use_sqlite = True
 
     with closing(await connect()) as conn:
         results = await query(conn, "SELECT 1 AS a")

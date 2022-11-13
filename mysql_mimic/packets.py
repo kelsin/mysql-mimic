@@ -36,6 +36,7 @@ from mysql_mimic.types import (
     ComStmtExecuteFlags,
     peek,
     ServerStatus,
+    read_str_rest,
 )
 
 
@@ -104,6 +105,12 @@ class ComStmtReset:
 @dataclass
 class ComStmtClose:
     stmt_id: int
+
+
+@dataclass
+class ComFieldList:
+    table: str
+    wildcard: str
 
 
 def make_ok(
@@ -464,6 +471,18 @@ def parse_com_stmt_reset(data: bytes) -> ComStmtReset:
 def parse_com_stmt_close(data: bytes) -> ComStmtClose:
     r = io.BytesIO(data)
     return ComStmtClose(stmt_id=read_uint_4(r))
+
+
+def parse_com_init_db(client_charset: CharacterSet, data: bytes) -> str:
+    return client_charset.decode(data)
+
+
+def parse_com_field_list(client_charset: CharacterSet, data: bytes) -> ComFieldList:
+    r = io.BytesIO(data)
+    return ComFieldList(
+        table=client_charset.decode(read_str_null(r)),
+        wildcard=client_charset.decode(read_str_rest(r)),
+    )
 
 
 def _read_cursor_flags(reader: io.BytesIO) -> Tuple[bool, bool]:

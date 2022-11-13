@@ -6,7 +6,7 @@ from typing import Callable, Any, Dict, Optional, Sequence
 
 from mysql_mimic.auth import IdentityProvider, SimpleIdentityProvider
 from mysql_mimic.connection import Connection
-from mysql_mimic.session import Session
+from mysql_mimic.session import Session, BaseSession
 from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 from mysql_mimic.stream import MysqlStream
 from mysql_mimic.types import Capabilities
@@ -40,7 +40,7 @@ class MysqlServer:
 
     def __init__(
         self,
-        session_factory: Callable[[], Session] = Session,
+        session_factory: Callable[[], BaseSession] = Session,
         capabilities: Capabilities = DEFAULT_SERVER_CAPABILITIES,
         server_id: int = None,
         identity_provider: IdentityProvider = None,

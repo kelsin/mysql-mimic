@@ -104,7 +104,6 @@ async def test_auth(
     password: Optional[str],
     auth_plugin: Optional[str],
 ) -> None:
-    session.use_sqlite = True
     kwargs = {"user": username, "password": password, "auth_plugin": auth_plugin}
     kwargs = {k: v for k, v in kwargs.items() if v is not None}
     with closing(await connect(**kwargs)) as conn:
@@ -124,7 +123,6 @@ async def test_auth_secondary_password(
     connect: ConnectFixture,
     auth_plugins: List[AuthPlugin],
 ) -> None:
-    session.use_sqlite = True
     with closing(
         await connect(
             user=PASSWORD_AUTH_USER,
@@ -166,7 +164,6 @@ async def test_change_user(
     user1: Tuple[str, str, str],
     user2: Tuple[str, str, str],
 ) -> None:
-    session.use_sqlite = True
     kwargs1 = {"user": user1[0], "password": user1[1], "auth_plugin": user1[2]}
     kwargs1 = {k: v for k, v in kwargs1.items() if v is not None}
 
@@ -211,7 +208,6 @@ async def test_access_denied(
     auth_plugin: Optional[str],
     msg: str,
 ) -> None:
-    session.use_sqlite = True
     kwargs = {"user": username, "password": password, "auth_plugin": auth_plugin}
     kwargs = {k: v for k, v in kwargs.items() if v is not None}
 

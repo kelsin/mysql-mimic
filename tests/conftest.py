@@ -1,6 +1,6 @@
+from __future__ import annotations
 import asyncio
 import functools
-import sqlite3
 from ssl import SSLContext
 from typing import (
     Optional,
@@ -13,18 +13,18 @@ from typing import (
     Sequence,
     AsyncGenerator,
     Type,
-    Tuple,
 )
 
 import aiomysql
-import mysql.connector
 import sqlalchemy.engine
+import mysql.connector
 from mysql.connector.connection import (
     MySQLCursorPrepared,
     MySQLCursorDict,
     MySQLConnection,
 )
 from mysql.connector.cursor import MySQLCursor
+from sqlglot import expressions as exp
 from sqlalchemy.ext.asyncio import create_async_engine
 import pytest
 import pytest_asyncio
@@ -35,8 +35,8 @@ from mysql_mimic.auth import (
     AuthPlugin,
     IdentityProvider,
 )
-from mysql_mimic.connection import Connection
 from mysql_mimic.results import AllowedResult
+from mysql_mimic.schema import InfoSchema
 
 
 class PreparedDictCursor(MySQLCursorPrepared):
@@ -54,33 +54,30 @@ class MockSession(Session):
         super().__init__()
         self.return_value: Any = None
         self.echo = False
-        self.sqlite = sqlite3.connect(":memory:")
-        self.use_sqlite = False
-        self.connection: Optional[Connection] = None
         self.last_query_attrs: Optional[Dict[str, str]] = None
         self.users: Optional[Dict[str, User]] = None
-        self.columns: Dict[Tuple[str, str], List[dict]] = {}
 
-    async def init(self, connection: Connection) -> None:
-        self.connection = connection
-
-    async def query(self, sql: str, attrs: Dict[str, str]) -> AllowedResult:
+    async def handle_query(
+        self, expression: exp.Expression, sql: str, attrs: Dict[str, str]
+    ) -> AllowedResult:
         self.last_query_attrs = attrs
-        if self.use_sqlite:
-            cursor = self.sqlite.execute(sql)
-            return cursor.fetchall(), [d[0] for d in cursor.description]
         if self.echo:
             return [(sql,)], ["sql"]
         return self.return_value
 
-    async def show_columns(self, database: str, table: str) -> Sequence[dict]:
-        return self.columns.get((database, table), [])
-
-    async def show_tables(self, database: str) -> Sequence[str]:
-        return [table for db, table in self.columns if db == database]
-
-    async def show_databases(self) -> Sequence[str]:
-        return [db for db, _ in self.columns]
+    async def info_schema(self) -> dict | InfoSchema:
+        return {
+            "db": {
+                "x": {
+                    "a": "TEXT",
+                    "b": "TEXT",
+                },
+                "y": {
+                    "b": "TEXT",
+                    "c": "TEXT",
+                },
+            }
+        }
 
 
 class MockIdentityProvider(IdentityProvider):

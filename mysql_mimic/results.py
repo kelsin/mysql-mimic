@@ -48,6 +48,9 @@ class ResultColumn:
     def binary_encode(self, val: Any) -> bytes:
         return self.binary_encoder(self, val)
 
+    def __repr__(self) -> str:
+        return f"ResultColumn({self.name} {self.type.name})"
+
 
 @dataclass
 class ResultSet:

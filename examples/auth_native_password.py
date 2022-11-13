@@ -54,7 +54,7 @@ class SqliteProxySession(Session):
 
 
 async def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     identity_provider = CustomIdentityProvider(passwords={"user": "password"})
     server = MysqlServer(
         session_factory=SqliteProxySession, identity_provider=identity_provider

@@ -13,16 +13,20 @@ from mysql_mimic.auth import (
 from mysql_mimic.charset import CharacterSet
 from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 from mysql_mimic.errors import ErrorCode, MysqlError
-from mysql_mimic.packets import SSLRequest
+from mysql_mimic.packets import (
+    SSLRequest,
+    parse_com_init_db,
+    parse_com_field_list,
+    make_column_definition_41,
+)
 from mysql_mimic.prepared import PreparedStatement, REGEX_PARAM
 from mysql_mimic.results import ensure_result_set, ResultSet
 from mysql_mimic import types, packets
-from mysql_mimic.session import Session
+from mysql_mimic.schema import com_field_list_to_show_statement
+from mysql_mimic.session import BaseSession
 from mysql_mimic.stream import MysqlStream, ConnectionClosed
 from mysql_mimic.types import Capabilities
 from mysql_mimic.utils import seq
-from mysql_mimic.admin import Admin
-from mysql_mimic.variables import SystemVariables
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +38,7 @@ class Connection:
         self,
         stream: MysqlStream,
         connection_id: int,
-        session: Session,
+        session: BaseSession,
         identity_provider: IdentityProvider,
         server_capabilities: Capabilities = DEFAULT_SERVER_CAPABILITIES,
         ssl: Optional[SSLContext] = None,
@@ -65,30 +69,25 @@ class Connection:
         self.prepared_stmt_seq = seq(self._MAX_PREPARED_STMT_ID)
         self.prepared_stmts: Dict[int, PreparedStatement] = {}
 
-        self.vars = SystemVariables()
-        self.admin = Admin(
-            connection_id=connection_id, session=session, variables=self.vars
-        )
-
     @property
     def server_charset(self) -> CharacterSet:
-        return self.vars.server_charset
+        return CharacterSet[self.session.variables.get("character_set_results")]
 
     @property
     def client_charset(self) -> CharacterSet:
-        return self.vars.client_charset
+        return CharacterSet[self.session.variables.get("character_set_client")]
 
     @property
     def database(self) -> Optional[str]:
-        return self.admin.database
+        return self.session.database
 
     @property
     def username(self) -> Optional[str]:
-        return self.admin.username
+        return self.session.username
 
     @username.setter
     def username(self, username: str) -> None:
-        self.admin.username = username
+        self.session.username = username
 
     async def start(self) -> None:
         logger.info("Started new connection: %s", self.connection_id)
@@ -114,7 +113,7 @@ class Connection:
         handshake_v10 = packets.make_handshake_v10(
             capabilities=self.server_capabilities,
             server_charset=self.server_charset,
-            server_version=self.vars.mysql_version,
+            server_version=self.session.variables.get("version"),
             connection_id=self.connection_id,
             auth_data=auth_data,
             status_flags=self.status_flags,
@@ -135,12 +134,12 @@ class Connection:
 
         self.capabilities = response.capabilities
         self.max_packet_size = response.max_packet_size
-        self.vars.client_charset = response.client_charset
-        self.admin.database = response.database
+        self.session.variables.set("character_set_client", response.client_charset.name)
+        self.session.database = response.database
         self.client_plugin_name = response.client_plugin
         self.client_connect_attrs = response.connect_attrs
         self.zstd_compression_level = response.zstd_compression_level
-        self.vars.external_user = response.username
+        self.session.variables.set("external_user", response.username, force=True)
 
         await self.authenticate(
             auth_state=auth_state,
@@ -159,10 +158,14 @@ class Connection:
             data=data,
         )
 
-        self.admin.database = com_change_user.database
-        self.vars.external_user = com_change_user.username
+        self.session.database = com_change_user.database
+        self.session.variables.set(
+            "external_user", com_change_user.username, force=True
+        )
         if com_change_user.client_charset:
-            self.vars.client_charset = com_change_user.client_charset
+            self.session.variables.set(
+                "character_set_client", com_change_user.client_charset.name
+            )
         if com_change_user.connect_attrs:
             self.client_connect_attrs = com_change_user.connect_attrs
 
@@ -173,7 +176,7 @@ class Connection:
             connect_attrs=com_change_user.connect_attrs,
         )
 
-        await self.session.init(self)
+        await self.session.reset()
 
     async def authenticate(
         self,
@@ -249,7 +252,7 @@ class Connection:
             decision = await auth_state.asend(auth_info)
 
         if isinstance(decision, Success):
-            self.admin.username = decision.authenticated_as
+            self.session.username = decision.authenticated_as
             await self.stream.write(self.ok())
         else:
             await self.stream.write(
@@ -295,6 +298,10 @@ class Connection:
                     await self.handle_debug(rest)
                 elif command == types.Commands.COM_QUIT:
                     return
+                elif command == types.Commands.COM_INIT_DB:
+                    await self.handle_init_db(rest)
+                elif command == types.Commands.COM_FIELD_LIST:
+                    await self.handle_field_list(rest)
                 else:
                     raise MysqlError(
                         f"Unsupported Command: {hex(command)}",
@@ -341,6 +348,25 @@ class Connection:
         For now, we're just treating this like a no-op.
         """
         await self.stream.write(self.ok())
+
+    async def handle_init_db(self, data: bytes) -> None:
+        await self.session.use(parse_com_init_db(self.client_charset, data))
+        await self.stream.write(self.ok())
+
+    async def handle_field_list(self, data: bytes) -> None:
+        com_field_list = parse_com_field_list(self.client_charset, data)
+        sql = com_field_list_to_show_statement(com_field_list)
+        result = await self.query(sql=sql, query_attrs={})
+        columns = b"".join(
+            make_column_definition_41(
+                server_charset=self.server_charset,
+                table=com_field_list.table,
+                name=row[0],
+            )
+            for row in result.rows
+        )
+        await self.stream.write(columns)
+        await self.stream.write(self.eof())
 
     async def handle_query(self, data: bytes) -> None:
         """
@@ -488,6 +514,7 @@ class Connection:
         stmt = self.get_stmt(com_stmt_reset.stmt_id)
         stmt.param_buffers = None
         stmt.cursor = None
+        await self.session.reset()
         await self.stream.write(self.ok())
 
     async def handle_stmt_close(self, data: bytes) -> None:
@@ -505,12 +532,9 @@ class Connection:
         raise MysqlError(f"Unknown statement: {stmt_id}", ErrorCode.UNKNOWN_PROCEDURE)
 
     async def query(self, sql: str, query_attrs: Dict[str, str]) -> ResultSet:
-        result_set = await self.admin.parse(sql)
+        logger.info("Received query: %s", sql)
 
-        if result_set is None:
-            sql = self.admin.replace_variables(sql)
-            result_set = ensure_result_set(await self.session.query(sql, query_attrs))
-
+        result_set = ensure_result_set(await self.session.query(sql, query_attrs))
         return result_set
 
     def ok(self, **kwargs: Any) -> bytes:
