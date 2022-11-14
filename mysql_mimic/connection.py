@@ -255,6 +255,11 @@ class Connection:
             self.session.username = decision.authenticated_as
             await self.stream.write(self.ok())
         else:
+            logger.info(
+                "Access denied for user '%s' with plugin '%s'",
+                auth_info.user.name,
+                user_plugin.name,
+            )
             await self.stream.write(
                 self.error(
                     msg=decision.msg or f"Access denied for user {auth_info.user.name}",

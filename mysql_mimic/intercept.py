@@ -37,7 +37,10 @@ def expression_to_value(expression: exp.Expression) -> Any:
     if expression == exp.null():
         return None
     if isinstance(expression, exp.Literal) and not expression.args.get("is_string"):
-        return float(expression.this)
+        try:
+            return int(expression.this)
+        except ValueError:
+            return float(expression.this)
     if isinstance(expression, exp.Literal):
         return expression.name
     if expression.name == "DEFAULT":

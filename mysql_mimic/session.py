@@ -399,7 +399,7 @@ class Session(BaseSession):
         self.variables.set("collation_connection", collation_name)
 
     def _show_variables(self, show: exp.Show) -> AllowedResult:
-        rows = [(k, str(v)) for k, v in self.variables.list()]
+        rows = [(k, None if v is None else str(v)) for k, v in self.variables.list()]
         like = show.text("like")
         if like:
             rows = [(k, v) for k, v in rows if like_to_regex(like).match(k)]

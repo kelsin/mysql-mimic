@@ -315,6 +315,18 @@ async def test_query_attributes(
             "select @@version_comment limit 1",
             [{"@@version_comment": "mysql-mimic"}],
         ),
+        (
+            "SET character_set_results = NULL; SELECT @@character_set_results",
+            [{"@@character_set_results": "utf8mb4"}],
+        ),
+        (
+            "SET SQL_AUTO_IS_NULL = 0; SELECT @@sql_auto_is_null",
+            [{"@@sql_auto_is_null": False}],
+        ),
+        (
+            "set @@sql_select_limit=DEFAULT; SELECT @@sql_select_limit",
+            [{"@@sql_select_limit": None}],
+        ),
         # SET referencing other parameters
         (
             """
@@ -652,7 +664,9 @@ async def test_query_attributes(
                 {"Value": "utf8mb4_general_ci", "Variable_name": "collation_server"},
                 {"Value": "levon_helm", "Variable_name": "external_user"},
                 {"Value": "0", "Variable_name": "lower_case_table_names"},
+                {"Value": "False", "Variable_name": "sql_auto_is_null"},
                 {"Value": "ANSI", "Variable_name": "sql_mode"},
+                {"Value": None, "Variable_name": "sql_select_limit"},
                 {"Value": "READ-COMMITTED", "Variable_name": "transaction_isolation"},
                 {"Value": "8.0.29", "Variable_name": "version"},
                 {"Value": "mysql-mimic", "Variable_name": "version_comment"},

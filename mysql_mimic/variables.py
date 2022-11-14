@@ -34,6 +34,8 @@ SYSTEM_VARIABLES: dict[str, VariableSchema] = {
     "sql_mode": (str, "ANSI", True),
     "lower_case_table_names": (int, 0, True),
     "external_user": (str, "", False),
+    "sql_auto_is_null": (bool, False, True),
+    "sql_select_limit": (int, None, True),
 }
 
 
@@ -55,6 +57,7 @@ class Variables(abc.ABC):
         return schema
 
     def set(self, name: str, value: Any, force: bool = False) -> None:
+        name = name.lower()
         type_, default, dynamic = self.get_schema(name)
 
         if not dynamic and not force:
@@ -62,12 +65,13 @@ class Variables(abc.ABC):
                 f"Variable is not dynamic: {name}", code=ErrorCode.PARSE_ERROR
             )
 
-        if value is DEFAULT:
+        if value is DEFAULT or value is None:
             self.values[name] = default
         else:
             self.values[name] = type_(value)
 
     def get(self, name: str) -> Any:
+        name = name.lower()
         if name in self.values:
             return self.values[name]
         _, default, _ = self.get_schema(name)
