@@ -6,8 +6,8 @@ build-backend = "setuptools.build_meta"
 target-version = ['py36', 'py37', 'py38', 'py39', 'py310']
 
 [tool.pytest.ini_options]
-log_cli = true
-log_cli_level = "INFO"
+#log_cli = true
+#log_cli_level = "INFO"
 
 [tool.mypy]
 ignore_missing_imports = true
