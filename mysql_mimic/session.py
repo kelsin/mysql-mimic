@@ -243,7 +243,7 @@ class Session(BaseSession):
 
     async def _rollback_interceptor(self, expression: exp.Expression) -> AllowedResult:
         """Intercept ROLLBACK statements"""
-        if expression.name.upper() == "ROLLBACK":
+        if isinstance(expression, exp.Rollback):
             return [], []
         return None
 
