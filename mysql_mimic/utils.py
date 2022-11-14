@@ -43,7 +43,9 @@ def find_tables(expression: exp.Expression) -> List[exp.Table]:
 
 
 def find_dbs(expression: exp.Expression) -> List[str]:
-    return [table.text("db") for table in find_tables(expression)]
+    if isinstance(expression, (exp.Subqueryable, exp.Subquery)):
+        return [table.text("db") for table in find_tables(expression)]
+    return []
 
 
 def lower_case_identifiers(expression: exp.Expression) -> None:

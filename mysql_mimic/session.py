@@ -6,7 +6,6 @@ from typing import (
     Callable,
     Awaitable,
     Type,
-    Iterable,
     Any,
 )
 
@@ -25,7 +24,7 @@ from mysql_mimic.schema import (
 )
 from mysql_mimic.utils import find_dbs, lower_case_identifiers
 from mysql_mimic.variables import Variables, SessionVariables, GlobalVariables, DEFAULT
-from mysql_mimic.results import AllowedResult, Column
+from mysql_mimic.results import AllowedResult
 
 if TYPE_CHECKING:
     from mysql_mimic.connection import Connection
@@ -46,7 +45,7 @@ class BaseSession:
     username: Optional[str]
     database: Optional[str]
 
-    async def query(self, sql: str, attrs: Dict[str, str]) -> AllowedResult:
+    async def handle_query(self, sql: str, attrs: Dict[str, str]) -> AllowedResult:
         """
         Main entrypoint for queries.
 
@@ -106,7 +105,7 @@ class Session(BaseSession):
             self._show_interceptor,
             self._rollback_interceptor,
             self._lower_case_identifiers_interceptor,
-            self._information_schema_interceptor,
+            self._info_schema_interceptor,
         ]
 
         # Information functions.
@@ -129,7 +128,7 @@ class Session(BaseSession):
 
         self._connection: Optional[Connection] = None
 
-    async def handle_query(
+    async def query(
         self, expression: exp.Expression, sql: str, attrs: Dict[str, str]
     ) -> AllowedResult:  # pylint: disable=unused-argument
         """
@@ -151,10 +150,7 @@ class Session(BaseSession):
         """
         return [], []
 
-    async def info_schema(self) -> dict | BaseInfoSchema:
-        return {}
-
-    async def schema(self) -> dict | Iterable[Column]:
+    async def schema(self) -> dict | BaseInfoSchema:
         """
         Provide the database schema.
 
@@ -166,7 +162,7 @@ class Session(BaseSession):
                 {table: {column: column_type}} or
                 {db: {table: {column: column_type}}} or
                 {catalog: {db: {table: {column: column_type}}}}
-            - List of Columns for all tables
+            - Instance of `BaseInfoSchema`
         """
         return {}
 
@@ -185,7 +181,7 @@ class Session(BaseSession):
     async def close(self) -> None:
         self._connection = None
 
-    async def query(self, sql: str, attrs: Dict[str, str]) -> AllowedResult:
+    async def handle_query(self, sql: str, attrs: Dict[str, str]) -> AllowedResult:
         """
         Main entrypoint for queries.
 
@@ -195,7 +191,7 @@ class Session(BaseSession):
         for expression in self.dialect().parse(sql):
             result = await self._intercept(expression, sql, attrs)
             if result is None:
-                result = await self.handle_query(expression, sql, attrs)
+                result = await self.query(expression, sql, attrs)
         return result
 
     async def use(self, database: str) -> None:
@@ -208,7 +204,7 @@ class Session(BaseSession):
         self.database = database
 
     async def _query_info_schema(self, expression: exp.Expression) -> AllowedResult:
-        return await ensure_info_schema(await self.info_schema()).query(expression)
+        return await ensure_info_schema(await self.schema()).query(expression)
 
     async def _intercept(
         self, expression: exp.Expression, sql: str, attrs: Dict[str, str]
@@ -334,7 +330,7 @@ class Session(BaseSession):
             return [], []
         return None
 
-    async def _information_schema_interceptor(
+    async def _info_schema_interceptor(
         self, expression: exp.Expression
     ) -> AllowedResult:
         """Intercept queries to INFORMATION_SCHEMA tables"""

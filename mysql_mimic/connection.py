@@ -534,7 +534,9 @@ class Connection:
     async def query(self, sql: str, query_attrs: Dict[str, str]) -> ResultSet:
         logger.info("Received query: %s", sql)
 
-        result_set = ensure_result_set(await self.session.query(sql, query_attrs))
+        result_set = ensure_result_set(
+            await self.session.handle_query(sql, query_attrs)
+        )
         return result_set
 
     def ok(self, **kwargs: Any) -> bytes:

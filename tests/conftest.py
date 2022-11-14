@@ -57,7 +57,7 @@ class MockSession(Session):
         self.last_query_attrs: Optional[Dict[str, str]] = None
         self.users: Optional[Dict[str, User]] = None
 
-    async def handle_query(
+    async def query(
         self, expression: exp.Expression, sql: str, attrs: Dict[str, str]
     ) -> AllowedResult:
         self.last_query_attrs = attrs
@@ -65,7 +65,7 @@ class MockSession(Session):
             return [(sql,)], ["sql"]
         return self.return_value
 
-    async def info_schema(self) -> dict | InfoSchema:
+    async def schema(self) -> dict | InfoSchema:
         return {
             "db": {
                 "x": {

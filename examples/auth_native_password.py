@@ -1,16 +1,13 @@
 import logging
 import asyncio
-import sqlite3
 from typing import Sequence, Optional, Dict
 
 from mysql_mimic import (
     MysqlServer,
-    Session,
     IdentityProvider,
     NativePasswordAuthPlugin,
     AuthPlugin,
     User,
-    AllowedResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,28 +34,10 @@ class CustomIdentityProvider(IdentityProvider):
         return None
 
 
-class SqliteProxySession(Session):
-    def __init__(self) -> None:
-        self.conn = sqlite3.connect(":memory:")
-
-    async def query(self, sql: str, attrs: Dict[str, str]) -> AllowedResult:
-        logger.info("Received query: %s", sql)
-        cursor = self.conn.cursor()
-        cursor.execute(sql)
-        try:
-            rows = cursor.fetchall()
-            columns = cursor.description and [c[0] for c in cursor.description]
-            return rows, columns
-        finally:
-            cursor.close()
-
-
 async def main() -> None:
     logging.basicConfig(level=logging.DEBUG)
     identity_provider = CustomIdentityProvider(passwords={"user": "password"})
-    server = MysqlServer(
-        session_factory=SqliteProxySession, identity_provider=identity_provider
-    )
+    server = MysqlServer(identity_provider=identity_provider)
     await server.start_server(port=3306)
     await server.serve_forever()
 
