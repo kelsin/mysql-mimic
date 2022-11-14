@@ -179,7 +179,7 @@ def connect(port: int) -> ConnectFixture:
 
 @pytest_asyncio.fixture
 async def mysql_connector_conn(connect: ConnectFixture) -> MySQLConnection:
-    conn = await connect()
+    conn = await connect(user="levon_helm")
     try:
         yield conn
     finally:
@@ -188,13 +188,13 @@ async def mysql_connector_conn(connect: ConnectFixture) -> MySQLConnection:
 
 @pytest_asyncio.fixture
 async def aiomysql_conn(port: int) -> aiomysql.Connection:
-    async with aiomysql.connect(port=port) as conn:
+    async with aiomysql.connect(port=port, user="levon_helm") as conn:
         yield conn
 
 
 @pytest_asyncio.fixture
 async def sqlalchemy_engine(port: int) -> sqlalchemy.engine.Engine:
-    engine = create_async_engine(url=f"mysql+aiomysql://127.0.0.1:{port}")
+    engine = create_async_engine(url=f"mysql+aiomysql://levon_helm@127.0.0.1:{port}")
     try:
         yield engine
     finally:

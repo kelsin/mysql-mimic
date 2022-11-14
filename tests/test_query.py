@@ -650,7 +650,7 @@ async def test_query_attributes(
                 },
                 {"Value": "utf8mb4_general_ci", "Variable_name": "collation_database"},
                 {"Value": "utf8mb4_general_ci", "Variable_name": "collation_server"},
-                {"Value": "barak_alon", "Variable_name": "external_user"},
+                {"Value": "levon_helm", "Variable_name": "external_user"},
                 {"Value": "0", "Variable_name": "lower_case_table_names"},
                 {"Value": "ANSI", "Variable_name": "sql_mode"},
                 {"Value": "READ-COMMITTED", "Variable_name": "transaction_isolation"},
