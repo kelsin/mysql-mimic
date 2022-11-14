@@ -49,7 +49,18 @@ class BaseSession:
         """
         Main entrypoint for queries.
 
-        This allows for more fine-grained control of query processing than `query`.
+        Args:
+            sql: SQL statement
+            attrs: Mapping of query attributes
+        Returns:
+            One of:
+            - tuple(rows, column_names), where "rows" is a sequence of sequences
+              and "column_names" is a sequence of strings with the same length
+              as every row in "rows"
+            - tuple(rows, result_columns), where "rows" is the same
+              as above, and "result_columns" is a sequence of mysql_mimic.ResultColumn
+              instances.
+            - mysql_mimic.ResultSet instance
         """
 
     async def init(self, connection: Connection) -> None:
@@ -59,15 +70,11 @@ class BaseSession:
 
     async def close(self) -> None:
         """
-        Close the session.
-
-        Called when the client closes the connection
+        Called when the client closes the connection.
         """
 
     async def reset(self) -> None:
         """
-        Reset the session.
-
         Called when a client resets the connection and after a COM_CHANGE_USER command.
         """
 
@@ -176,17 +183,18 @@ class Session(BaseSession):
         return self._connection
 
     async def init(self, connection: Connection) -> None:
+        """
+        Called when connection phase is complete.
+        """
         self._connection = connection
 
     async def close(self) -> None:
+        """
+        Called when the client closes the connection.
+        """
         self._connection = None
 
     async def handle_query(self, sql: str, attrs: Dict[str, str]) -> AllowedResult:
-        """
-        Main entrypoint for queries.
-
-        This allows for more fine-grained control of query processing than `query`.
-        """
         result = None
         for expression in self.dialect().parse(sql):
             result = await self._intercept(expression, sql, attrs)
@@ -195,12 +203,6 @@ class Session(BaseSession):
         return result
 
     async def use(self, database: str) -> None:
-        """
-        Called when a USE database_name command is received.
-
-        Args:
-            database: database name
-        """
         self.database = database
 
     async def _query_info_schema(self, expression: exp.Expression) -> AllowedResult:

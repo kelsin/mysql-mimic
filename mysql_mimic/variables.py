@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import abc
-from typing import Any, Callable
+from typing import Any, Callable, Tuple
 
 from mysql_mimic.charset import CharacterSet, Collation
 from mysql_mimic.errors import MysqlError, ErrorCode
@@ -11,9 +11,13 @@ class Default:
     ...
 
 
+VariableType = Callable[[Any], Any]
+VariableSchema = Tuple[VariableType, Any, bool]
+
+
 DEFAULT = Default()
 
-SYSTEM_VARIABLES = {
+SYSTEM_VARIABLES: dict[str, VariableSchema] = {
     # name: (type, default, dynamic)
     "autocommit": (bool, True, True),
     "version": (str, "8.0.29", False),
@@ -34,10 +38,15 @@ SYSTEM_VARIABLES = {
 
 
 class Variables(abc.ABC):
+    """
+    Abstract class for MySQL system variables.
+    """
+
     def __init__(self) -> None:
+        # Current variable values
         self.values: dict[str, Any] = {}
 
-    def get_schema(self, name: str) -> tuple[Callable, Any, bool]:
+    def get_schema(self, name: str) -> VariableSchema:
         schema = self.schema.get(name)
         if not schema:
             raise MysqlError(
@@ -70,17 +79,17 @@ class Variables(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def schema(self) -> dict[str, tuple[type, Any, bool]]:
+    def schema(self) -> dict[str, VariableSchema]:
         ...
 
 
 class GlobalVariables(Variables):
-    def __init__(self, schema: dict[str, tuple[type, Any, bool]] | None = None):
+    def __init__(self, schema: dict[str, VariableSchema] | None = None):
         self._schema = schema or SYSTEM_VARIABLES
         super().__init__()
 
     @property
-    def schema(self) -> dict[str, tuple[type, Any, bool]]:
+    def schema(self) -> dict[str, VariableSchema]:
         return self._schema
 
 
@@ -90,5 +99,5 @@ class SessionVariables(Variables):
         super().__init__()
 
     @property
-    def schema(self) -> dict[str, tuple[type, Any, bool]]:
+    def schema(self) -> dict[str, VariableSchema]:
         return self.global_variables.schema

@@ -34,18 +34,20 @@ def xor(a: bytes, b: bytes) -> bytes:
 
 
 def find_tables(expression: exp.Expression) -> List[exp.Table]:
-    return [
-        source
-        for scope in traverse_scope(expression)
-        for source in scope.sources.values()
-        if isinstance(source, exp.Table)
-    ]
+    """Find all tables in an expression"""
+    if isinstance(expression, (exp.Subqueryable, exp.Subquery)):
+        return [
+            source
+            for scope in traverse_scope(expression)
+            for source in scope.sources.values()
+            if isinstance(source, exp.Table)
+        ]
+    return []
 
 
 def find_dbs(expression: exp.Expression) -> List[str]:
-    if isinstance(expression, (exp.Subqueryable, exp.Subquery)):
-        return [table.text("db") for table in find_tables(expression)]
-    return []
+    """Find all database names in an expression"""
+    return [table.text("db") for table in find_tables(expression)]
 
 
 def lower_case_identifiers(expression: exp.Expression) -> None:

@@ -61,25 +61,6 @@ class ResultSet:
         return bool(self.columns)
 
 
-@dataclass
-class Column:
-    """
-    Column data for a SHOW COLUMNS statement
-
-    https://dev.mysql.com/doc/refman/8.0/en/show-columns.html
-    """
-
-    name: str
-    type: str
-    collation: str = "NULL"
-    null: str = "YES"
-    key: Optional[str] = None
-    default: Optional[str] = None
-    extra: Optional[str] = None
-    privileges: Optional[str] = None
-    comment: Optional[str] = None
-
-
 AllowedColumn = Union[ResultColumn, str]
 AllowedResult = Union[
     ResultSet, Tuple[Sequence[Sequence[Any]], Sequence[AllowedColumn]], None

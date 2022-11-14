@@ -17,12 +17,6 @@ from mysql_mimic.utils import dict_depth
 
 @dataclass
 class Column:
-    """
-    Column data for a SHOW COLUMNS statement
-
-    https://dev.mysql.com/doc/refman/8.0/en/show-columns.html
-    """
-
     name: str
     type: str
     table: str
@@ -147,14 +141,17 @@ INFO_SCHEMA = {
 
 
 def mapping_to_columns(schema: dict) -> List[Column]:
+    """Convert a schema mapping into a list of Column instances"""
     depth = dict_depth(schema)
     if depth < 2:
         return []
     if depth == 2:
+        # {table: {col: type}}
         schema = {"": schema}
         depth += 1
     if depth == 3:
-        schema = {"def": schema}
+        # {db: {table: {col: type}}}
+        schema = {"def": schema}  # def is the default MySQL catalog
         depth += 1
     if depth != 4:
         raise MysqlError("Invalid schema mapping")
@@ -178,6 +175,11 @@ def mapping_to_columns(schema: dict) -> List[Column]:
 
 
 def info_schema_tables(columns: Iterable[Column]) -> Dict[str, Dict[str, Table]]:
+    """
+    Convert a list of Column instances into a mapping of SQLGlot Tables.
+
+    These Tables are used by SQLGlot to execute INFORMATION_SCHEMA queries.
+    """
     ordinal_positions: dict[Any, int] = defaultdict(lambda: 0)
 
     data = {
@@ -372,11 +374,19 @@ def like_to_regex(like: str) -> re.Pattern:
 
 
 class BaseInfoSchema:
+    """
+    Base InfoSchema interface used by the `Session` class.
+    """
+
     async def query(self, expression: exp.Expression) -> AllowedResult:
         ...
 
 
 class InfoSchema(BaseInfoSchema):
+    """
+    InfoSchema implementation that uses SQLGlot to execute queries.
+    """
+
     def __init__(self, tables: Dict[str, Dict[str, Table]]):
         self.tables = tables
 
