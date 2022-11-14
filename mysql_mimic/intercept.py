@@ -19,22 +19,22 @@ def setitem_kind(setitem: exp.SetItem) -> str:
 
 def value_to_expression(value: Any) -> exp.Expression:
     if value is True:
-        return exp.TRUE.copy()
+        return exp.true()
     if value is False:
-        return exp.FALSE.copy()
+        return exp.false()
     if value is None:
-        return exp.NULL.copy()
+        return exp.null()
     if isinstance(value, (int, float)):
         return exp.Literal.number(value)
     return exp.Literal.string(str(value))
 
 
 def expression_to_value(expression: exp.Expression) -> Any:
-    if expression == exp.TRUE:
+    if expression == exp.true():
         return True
-    if expression == exp.FALSE:
+    if expression == exp.false():
         return False
-    if expression == exp.NULL:
+    if expression == exp.null():
         return None
     if isinstance(expression, exp.Literal) and not expression.args.get("is_string"):
         return float(expression.this)
