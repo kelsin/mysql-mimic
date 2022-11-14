@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import random
 from ssl import SSLContext
@@ -42,9 +44,9 @@ class MysqlServer:
         self,
         session_factory: Callable[[], BaseSession] = Session,
         capabilities: Capabilities = DEFAULT_SERVER_CAPABILITIES,
-        server_id: int = None,
-        identity_provider: IdentityProvider = None,
-        ssl: SSLContext = None,
+        server_id: int | None = None,
+        identity_provider: IdentityProvider | None = None,
+        ssl: SSLContext | None = None,
         **serve_kwargs: Any,
     ):
         self.session_factory = session_factory

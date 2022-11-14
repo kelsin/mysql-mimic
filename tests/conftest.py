@@ -205,8 +205,8 @@ async def query(
     conn: MySQLConnection,
     sql: str,
     cursor_class: Type[MySQLCursor] = MySQLCursorDict,
-    params: Sequence[Any] = None,
-    query_attributes: Dict[str, str] = None,
+    params: Sequence[Any] | None = None,
+    query_attributes: Dict[str, str] | None = None,
 ) -> Sequence[Any]:
     cursor = await to_thread(conn.cursor, cursor_class=cursor_class)
     if query_attributes:

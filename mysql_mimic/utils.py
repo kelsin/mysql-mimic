@@ -1,3 +1,4 @@
+from __future__ import annotations
 import sys
 from collections.abc import Iterator
 from typing import List, Any, Dict
@@ -9,7 +10,7 @@ from sqlglot.optimizer.scope import traverse_scope
 class seq(Iterator):
     """Auto-incrementing sequence with an optional maximum size"""
 
-    def __init__(self, size: int = None):
+    def __init__(self, size: int | None = None):
         self.size = size
         self.value = 0
 

@@ -99,7 +99,7 @@ class Session(BaseSession):
 
     dialect: Type[Dialect] = MySQL
 
-    def __init__(self, variables: Variables = None):
+    def __init__(self, variables: Variables | None = None):
         self.variables = variables or SessionVariables(GlobalVariables())
 
         # Query interceptors.
