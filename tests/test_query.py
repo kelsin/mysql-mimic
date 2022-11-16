@@ -16,6 +16,7 @@ from mysql_mimic.charset import CharacterSet
 from mysql_mimic.results import AllowedResult
 from mysql_mimic.types import ColumnType
 from tests.conftest import PreparedDictCursor, query, MockSession, ConnectFixture
+from tests.fixtures import queries
 
 QueryFixture = Callable[[str], Awaitable[Sequence[Dict[str, Any]]]]
 
@@ -256,6 +257,9 @@ async def test_replace_function(
         result = await query(conn, "SELECT DATABASE()")
         assert result[0]["DATABASE()"] == "db"
 
+        result = await query(conn, "SELECT schema()")
+        assert result[0]["SCHEMA()"] == "db"
+
 
 @pytest.mark.asyncio
 async def test_query_attributes(
@@ -429,6 +433,28 @@ async def test_query_attributes(
                 }
             ],
         ),
+        # SET transaction
+        (
+            """
+            set session transaction read only;
+            SELECT @@session.transaction_read_only""",
+            [
+                {
+                    "@@session.transaction_read_only": True,
+                }
+            ],
+        ),
+        (
+            """
+            SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ WRITE;
+            SELECT @@transaction_isolation, @@transaction_read_only""",
+            [
+                {
+                    "@@transaction_isolation": "REPEATABLE-READ",
+                    "@@transaction_read_only": False,
+                }
+            ],
+        ),
         # Types
         ("SET autocommit = OFF; SELECT @@autocommit AS x", [{"x": False}]),
         ("SET autocommit = ON; SELECT @@autocommit AS x", [{"x": True}]),
@@ -443,7 +469,6 @@ async def test_query_attributes(
         # USE
         ("USE db2; SELECT DATABASE()", [{"DATABASE()": "db2"}]),
         # INFORMATION_SCHEMA
-        # Many of these queries are sourced from Tableau
         (
             """
         SELECT
@@ -497,6 +522,7 @@ async def test_query_attributes(
                     ("character_sets", "information_schema", "SYSTEM TABLE"),
                     ("columns", "information_schema", "SYSTEM TABLE"),
                     ("key_column_usage", "information_schema", "SYSTEM TABLE"),
+                    ("parameters", "information_schema", "SYSTEM TABLE"),
                     ("referential_constraints", "information_schema", "SYSTEM TABLE"),
                     ("schemata", "information_schema", "SYSTEM TABLE"),
                     ("statistics", "information_schema", "SYSTEM TABLE"),
@@ -535,10 +561,7 @@ async def test_query_attributes(
             [],
         ),
         (
-            """
-        SELECT NULL, NULL, NULL, SCHEMA_NAME
-        FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME LIKE '%'
-        ORDER BY SCHEMA_NAME""",
+            queries.TABLEAU_SCHEMATA,
             [
                 {
                     "_col_0": None,
@@ -550,25 +573,7 @@ async def test_query_attributes(
             ],
         ),
         (
-            """
-        SELECT NULL, NULL, NULL, SCHEMA_NAME
-        FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME LIKE '%'
-        ORDER BY SCHEMA_NAME""",
-            [
-                {
-                    "_col_0": None,
-                    "_col_1": None,
-                    "_col_2": None,
-                    "schema_name": schema_name,
-                }
-                for schema_name in ["db", "information_schema"]
-            ],
-        ),
-        (
-            """
-        SELECT TABLE_NAME,TABLE_COMMENT,IF(TABLE_TYPE='BASE TABLE', 'TABLE', TABLE_TYPE),TABLE_SCHEMA 
-        FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'db' AND ( TABLE_TYPE='BASE TABLE' OR TABLE_TYPE='VIEW' )  
-        ORDER BY TABLE_SCHEMA, TABLE_NAME""",
+            queries.TABLEAU_TABLES,
             [
                 {
                     "_col_2": "TABLE",
@@ -580,76 +585,22 @@ async def test_query_attributes(
             ],
         ),
         (
-            """
-        SELECT `table_name`, `column_name`
-        FROM `information_schema`.`columns`
-        WHERE `data_type`='enum' AND `table_schema`='db'""",
+            queries.TABLEAU_COLUMNS,
             [],
         ),
         (
-            """
-        SELECT COLUMN_NAME,
-         REFERENCED_TABLE_NAME,
-         REFERENCED_COLUMN_NAME,
-         ORDINAL_POSITION,
-         CONSTRAINT_NAME
-        FROM information_schema.KEY_COLUMN_USAGE
-        WHERE REFERENCED_TABLE_NAME IS NOT NULL
-         AND TABLE_NAME = 'x'
-         AND TABLE_SCHEMA = 'db'""",
+            queries.TABLEAU_INDEXES_2,
             [],
         ),
         (
-            """
-        SELECT
-          A.REFERENCED_TABLE_SCHEMA AS PKTABLE_CAT,
-          NULL AS PKTABLE_SCHEM,
-          A.REFERENCED_TABLE_NAME AS PKTABLE_NAME,
-          A.REFERENCED_COLUMN_NAME AS PKCOLUMN_NAME,
-          A.TABLE_SCHEMA AS FKTABLE_CAT,
-          NULL AS FKTABLE_SCHEM,
-          A.TABLE_NAME AS FKTABLE_NAME,
-          A.COLUMN_NAME AS FKCOLUMN_NAME,
-          A.ORDINAL_POSITION AS KEY_SEQ,
-          CASE
-            WHEN R.UPDATE_RULE = 'CASCADE' THEN 0 
-            WHEN R.UPDATE_RULE = 'SET NULL' THEN 2 
-            WHEN R.UPDATE_RULE = 'SET DEFAULT' THEN 4 
-            WHEN R.UPDATE_RULE = 'SET RESTRICT' THEN 1 
-            WHEN R.UPDATE_RULE = 'SET NO ACTION' THEN 3 
-            ELSE 3 
-          END AS UPDATE_RULE,
-          CASE
-            WHEN R.DELETE_RULE = 'CASCADE' THEN 0 
-            WHEN R.DELETE_RULE = 'SET NULL' THEN 2
-            WHEN R.DELETE_RULE = 'SET DEFAULT' THEN 4
-            WHEN R.DELETE_RULE = 'SET RESTRICT' THEN 1 
-            WHEN R.DELETE_RULE = 'SET NO ACTION' THEN 3 
-          ELSE 3 END AS DELETE_RULE,
-          A.CONSTRAINT_NAME AS FK_NAME,
-          'PRIMARY' AS PK_NAME,
-          7 AS DEFERRABILITY 
-        FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE A 
-        JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE D 
-        ON (
-          D.TABLE_SCHEMA=A.REFERENCED_TABLE_SCHEMA 
-          AND D.TABLE_NAME=A.REFERENCED_TABLE_NAME 
-          AND D.COLUMN_NAME=A.REFERENCED_COLUMN_NAME) 
-        JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS R 
-        ON (
-          R.CONSTRAINT_NAME = A.CONSTRAINT_NAME 
-          AND R.TABLE_NAME = A.TABLE_NAME 
-          AND R.CONSTRAINT_SCHEMA = A.TABLE_SCHEMA) 
-        WHERE 
-          D.CONSTRAINT_NAME='PRIMARY' 
-          AND A.TABLE_SCHEMA = 'magic' 
-        ORDER BY FKTABLE_CAT, FKTABLE_NAME, KEY_SEQ, PKTABLE_NAME""",
+            queries.TABLEAU_INDEXES_1,
             [],
         ),
         # SHOW
         (
             "show variables",
             [
+                {"Value": "1", "Variable_name": "auto_increment_increment"},
                 {"Value": "False", "Variable_name": "autocommit"},
                 {"Value": "utf8mb4", "Variable_name": "character_set_client"},
                 {"Value": "utf8mb4", "Variable_name": "character_set_connection"},
@@ -663,13 +614,23 @@ async def test_query_attributes(
                 {"Value": "utf8mb4_general_ci", "Variable_name": "collation_database"},
                 {"Value": "utf8mb4_general_ci", "Variable_name": "collation_server"},
                 {"Value": "levon_helm", "Variable_name": "external_user"},
+                {"Value": "", "Variable_name": "init_connect"},
+                {"Value": "28800", "Variable_name": "interactive_timeout"},
+                {"Value": "MIT", "Variable_name": "license"},
                 {"Value": "0", "Variable_name": "lower_case_table_names"},
+                {"Value": "67108864", "Variable_name": "max_allowed_packet"},
+                {"Value": "28800", "Variable_name": "net_write_timeout"},
+                {"Value": "False", "Variable_name": "performance_schema"},
                 {"Value": "False", "Variable_name": "sql_auto_is_null"},
                 {"Value": "ANSI", "Variable_name": "sql_mode"},
                 {"Value": None, "Variable_name": "sql_select_limit"},
+                {"Value": "UTC", "Variable_name": "system_time_zone"},
+                {"Value": "UTC", "Variable_name": "time_zone"},
                 {"Value": "READ-COMMITTED", "Variable_name": "transaction_isolation"},
+                {"Value": "False", "Variable_name": "transaction_read_only"},
                 {"Value": "8.0.29", "Variable_name": "version"},
                 {"Value": "mysql-mimic", "Variable_name": "version_comment"},
+                {"Value": "28800", "Variable_name": "wait_timeout"},
             ],
         ),
         (
@@ -709,6 +670,38 @@ async def test_query_attributes(
             [{"Table_name": "x", "Table_type": "BASE TABLE"}],
         ),
         ("show databases like '_n%'", [{"Database": "information_schema"}]),
+        # DataGrip
+        (
+            queries.DATA_GRIP_VARIABLES,
+            [
+                {
+                    "auto_increment_increment": 1,
+                    "character_set_client": "utf8mb4",
+                    "character_set_connection": "utf8mb4",
+                    "character_set_results": "utf8mb4",
+                    "character_set_server": "utf8mb4",
+                    "collation_connection": "utf8mb4_general_ci",
+                    "collation_server": "utf8mb4_general_ci",
+                    "init_connect": "",
+                    "interactive_timeout": 28800,
+                    "license": "MIT",
+                    "lower_case_table_names": 0,
+                    "max_allowed_packet": 67108864,
+                    "net_write_timeout": 28800,
+                    "performance_schema": 0,
+                    "sql_mode": "ANSI",
+                    "system_time_zone": "UTC",
+                    "time_zone": "UTC",
+                    "transaction_isolation": "READ-COMMITTED",
+                    "wait_timeout": 28800,
+                }
+            ],
+        ),
+        (
+            "select database(), schema(), left(user(),instr(concat(user(),'@'),'@')-1)",
+            [{"DATABASE()": None, "SCHEMA()": None, "_col_2": "levon_helm"}],
+        ),
+        (queries.DATA_GRIP_PARAMETERS, []),
     ],
 )
 async def test_commands(

@@ -12,10 +12,16 @@ from typing import (
 from sqlglot import Dialect
 from sqlglot.dialects import MySQL
 from sqlglot import expressions as exp
+from sqlglot.executor import execute
 
 from mysql_mimic.charset import CharacterSet
 from mysql_mimic.errors import ErrorCode, MysqlError
-from mysql_mimic.intercept import setitem_kind, value_to_expression, expression_to_value
+from mysql_mimic.intercept import (
+    setitem_kind,
+    value_to_expression,
+    expression_to_value,
+    TRANSACTION_CHARACTERISTICS,
+)
 from mysql_mimic.schema import (
     show_statement_to_info_schema_query,
     like_to_regex,
@@ -125,6 +131,7 @@ class Session(BaseSession):
             "CURRENT_USER": lambda: self.username,
             "VERSION": lambda: self.variables.get("version"),
             "DATABASE": lambda: self.database,
+            "SCHEMA": lambda: self.database,
         }
 
         # Current database
@@ -137,7 +144,7 @@ class Session(BaseSession):
 
     async def query(
         self, expression: exp.Expression, sql: str, attrs: Dict[str, str]
-    ) -> AllowedResult:  # pylint: disable=unused-argument
+    ) -> AllowedResult:
         """
         Process a SQL query.
 
@@ -237,6 +244,12 @@ class Session(BaseSession):
             kind = expression.name.upper()
             if kind == "VARIABLES":
                 return self._show_variables(expression)
+            if kind == "STATUS":
+                return self._show_status(expression)
+            if kind == "WARNINGS":
+                return self._show_warnings(expression)
+            if kind == "ERRORS":
+                return self._show_errors(expression)
             select = show_statement_to_info_schema_query(expression)
             return await self._query_info_schema(select)
         return None
@@ -253,8 +266,8 @@ class Session(BaseSession):
         def _transform(node: exp.Expression) -> exp.Expression:
             new_node = None
 
-            if isinstance(node, exp.Anonymous) and node.name in self._functions:
-                value = self._functions[node.name]()
+            if isinstance(node, exp.Anonymous) and node.name.upper() in self._functions:
+                value = self._functions[node.name.upper()]()
                 new_node = value_to_expression(value)
             elif isinstance(node, exp.Column) and node.sql() == "CURRENT_USER":
                 value = self._functions["CURRENT_USER"]()
@@ -292,20 +305,12 @@ class Session(BaseSession):
 
         These very common, as many clients execute commands like SELECT DATABASE() when connecting.
         """
-        if (
-            isinstance(expression, exp.Select)
-            and not any(
-                expression.args.get(a)
-                for a in set(exp.Select.arg_types) - {"expressions", "limit"}
-            )
-            # and all(isinstance(e.unalias(), (exp.Literal, exp.Boolean, exp.Null)) for e in expression.expressions)
+        if isinstance(expression, exp.Select) and not any(
+            expression.args.get(a)
+            for a in set(exp.Select.arg_types) - {"expressions", "limit"}
         ):
-            row = []
-            columns = []
-            for i, e in enumerate(expression.expressions):
-                row.append(expression_to_value(e.unalias()))
-                columns.append(e.alias or f"_col_{i}")
-            return [row], columns
+            result = execute(expression)
+            return result.rows, result.columns
         return None
 
     async def _set_interceptor(self, expression: exp.Expression) -> AllowedResult:
@@ -323,6 +328,8 @@ class Session(BaseSession):
                     self._set_charset(item)
                 elif kind == "NAMES":
                     self._set_names(item)
+                elif kind == "TRANSACTION":
+                    self._set_transaction(item)
                 else:
                     raise MysqlError(
                         f"Unsupported SET statement: {kind}",
@@ -398,9 +405,24 @@ class Session(BaseSession):
         self.variables.set("character_set_results", charset_name)
         self.variables.set("collation_connection", collation_name)
 
+    def _set_transaction(self, item: exp.SetItem) -> None:
+        characteristics = [e.name.upper() for e in item.expressions]
+        for characteristic in characteristics:
+            variable, value = TRANSACTION_CHARACTERISTICS[characteristic]
+            self.variables.set(variable, value)
+
     def _show_variables(self, show: exp.Show) -> AllowedResult:
         rows = [(k, None if v is None else str(v)) for k, v in self.variables.list()]
         like = show.text("like")
         if like:
             rows = [(k, v) for k, v in rows if like_to_regex(like).match(k)]
         return rows, ["Variable_name", "Value"]
+
+    def _show_status(self, show: exp.Show) -> AllowedResult:
+        return [], ["Variable_name", "Value"]
+
+    def _show_warnings(self, show: exp.Show) -> AllowedResult:
+        return [], ["Level", "Code", "Message"]
+
+    def _show_errors(self, show: exp.Show) -> AllowedResult:
+        return [], ["Level", "Code", "Message"]

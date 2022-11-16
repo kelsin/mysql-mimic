@@ -6,6 +6,17 @@ from sqlglot import expressions as exp
 from mysql_mimic.variables import DEFAULT
 
 
+# Mapping of transaction characteristic from SET TRANSACTION statements to their corresponding system variable
+TRANSACTION_CHARACTERISTICS = {
+    "ISOLATION LEVEL REPEATABLE READ": ("transaction_isolation", "REPEATABLE-READ"),
+    "ISOLATION LEVEL READ COMMITTED": ("transaction_isolation", "READ-COMMITTED"),
+    "ISOLATION LEVEL READ UNCOMMITTED": ("transaction_isolation", "READ-UNCOMMITTED"),
+    "ISOLATION LEVEL SERIALIZABLE": ("transaction_isolation", "SERIALIZABLE"),
+    "READ WRITE": ("transaction_read_only", False),
+    "READ ONLY": ("transaction_read_only", True),
+}
+
+
 def setitem_kind(setitem: exp.SetItem) -> str:
     kind = setitem.text("kind")
     if not kind:

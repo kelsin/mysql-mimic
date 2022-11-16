@@ -136,6 +136,24 @@ INFO_SCHEMA = {
             "is_visible": "TEXT",
             "expression": "TEXT",
         },
+        "parameters": {
+            "specific_catalog": "TEXT",
+            "specific_schema": "TEXT",
+            "specific_name": "TEXT",
+            "ordinal_position": "INT",
+            "parameter_mode": "TEXT",
+            "parameter_name": "TEXT",
+            "data_type": "TEXT",
+            "character_maximum_length": "INT",
+            "character_octet_length": "INT",
+            "numeric_precision": "INT",
+            "numeric_scale": "INT",
+            "datetime_precision": "INT",
+            "character_set_name": "TEXT",
+            "collation_name": "TEXT",
+            "dtd_identifier": "TEXT",
+            "routine_type": "TEXT",
+        },
     }
 }
 
@@ -391,7 +409,7 @@ class InfoSchema(BaseInfoSchema):
         self.tables = tables
 
     async def query(self, expression: exp.Expression) -> AllowedResult:
-        result = execute(expression.sql(), schema=INFO_SCHEMA, tables=self.tables)
+        result = execute(expression, schema=INFO_SCHEMA, tables=self.tables)
         return result.rows, result.columns
 
     @classmethod
