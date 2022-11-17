@@ -87,19 +87,6 @@ class AuthPlugin:
         return data, state
 
 
-class GullibleAuthPlugin(AuthPlugin):
-    """
-    Custom plugin that naively accepts whatever username a client provides.
-    """
-
-    name = "mysql_mimic_gullible"
-
-    async def auth(self, auth_info: Optional[AuthInfo] = None) -> AuthState:
-        if not auth_info:
-            auth_info = yield FILLER
-        yield Success(authenticated_as=auth_info.username)
-
-
 class AbstractClearPasswordAuthPlugin(AuthPlugin):
     """
     Abstract class for implementing the server-side of the standard client plugin "mysql_clear_password".
@@ -175,10 +162,14 @@ class NativePasswordAuthPlugin(AuthPlugin):
         #   SHA1(password) XOR SHA1("20-bytes random data from server" <concat> SHA1(SHA1(password)))
         # auth_string should be:
         #   SHA1(SHA1(password))
-        sha1_sha1_password = bytes.fromhex(auth_string or "")
-        sha1_sha1_with_nonce = sha1(nonce + sha1_sha1_password).digest()
-        rcvd_sha1_password = xor(scramble, sha1_sha1_with_nonce)
-        return sha1(rcvd_sha1_password).digest() == sha1_sha1_password
+        try:
+            sha1_sha1_password = bytes.fromhex(auth_string or "")
+            sha1_sha1_with_nonce = sha1(nonce + sha1_sha1_password).digest()
+            rcvd_sha1_password = xor(scramble, sha1_sha1_with_nonce)
+            return sha1(rcvd_sha1_password).digest() == sha1_sha1_password
+        except Exception:  # pylint: disable=broad-except
+            logger.info("Invalid scramble")
+            return False
 
     @classmethod
     def create_auth_string(cls, password: str) -> str:
@@ -229,8 +220,5 @@ class SimpleIdentityProvider(IdentityProvider):
     Simple identity provider implementation that naively accepts whatever username a client provides.
     """
 
-    def get_plugins(self) -> Sequence[AuthPlugin]:
-        return [GullibleAuthPlugin()]
-
     async def get_user(self, username: str) -> Optional[User]:
-        return User(name=username, auth_plugin=GullibleAuthPlugin.name)
+        return User(name=username, auth_plugin=NativePasswordAuthPlugin.name)

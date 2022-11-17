@@ -14,8 +14,10 @@ import aiomysql
 from mysql_mimic import ResultColumn, ResultSet, MysqlServer
 from mysql_mimic.charset import CharacterSet
 from mysql_mimic.results import AllowedResult
+from mysql_mimic.schema import INFO_SCHEMA
 from mysql_mimic.types import ColumnType
 from tests.conftest import PreparedDictCursor, query, MockSession, ConnectFixture
+from tests.fixtures import queries
 
 QueryFixture = Callable[[str], Awaitable[Sequence[Dict[str, Any]]]]
 
@@ -58,18 +60,26 @@ async def query_fixture(
     if request.param == "sqlalchemy":
 
         async def q4(sql: str) -> Sequence[Dict[str, Any]]:
-            # Sqlalchemy fires off a bunch of metadata queries when connecting.
-            # We'll just route things like "SELECT VERSION()" to sqlite, which should be
-            # fine because the connection replaces "VERSION()" with the version name.
-            session.use_sqlite = True
             async with sqlalchemy_engine.connect() as conn:
-                session.use_sqlite = False
                 cursor = await conn.execute(text(sql))
-                return cursor.mappings().all()
+                if cursor.returns_rows:
+                    return cursor.mappings().all()
+                return []
 
         return q4
 
     raise Exception("Unexpected fixture param")
+
+
+# # Uncomment to make tests only use mysql-connector, which can help during debugging
+# @pytest_asyncio.fixture
+# async def query_fixture(
+#     mysql_connector_conn: MySQLConnection,
+# ) -> QueryFixture:
+#     async def q1(sql: str) -> Sequence[Dict[str, Any]]:
+#         return await query(mysql_connector_conn, sql)
+#
+#     return q1
 
 
 EXPLICIT_TYPE_TESTS = [
@@ -156,29 +166,37 @@ async def test_query(
 @pytest.mark.parametrize(
     "sql, params, expected",
     [
-        ("SELECT ?", ("1",), "SELECT '1'"),
-        ("SELECT '?'", (), "SELECT '?'"),
-        ("SELECT ?", (1,), "SELECT 1"),
-        ("SELECT ?", (0,), "SELECT 0"),
-        ("SELECT ?", (-1,), "SELECT -1"),
-        ("SELECT ?", (255,), "SELECT 255"),
-        ("SELECT ?", (-128,), "SELECT -128"),
-        ("SELECT ?", (65535,), "SELECT 65535"),
-        ("SELECT ?", (-32767,), "SELECT -32767"),
-        ("SELECT ?", (4294967295,), "SELECT 4294967295"),
-        ("SELECT ?", (-2147483648,), "SELECT -2147483648"),
-        ("SELECT ?", (18446744073709551615,), "SELECT 18446744073709551615"),
-        ("SELECT ?", (-9223372036854775808,), "SELECT -9223372036854775808"),
-        ("SELECT ?", (1.1,), "SELECT 1.1"),
-        ("SELECT ?", (1.7e308,), "SELECT 1.7e+308"),
-        ("SELECT ?", (None,), "SELECT NULL"),
-        ("SELECT ?", (b"hello",), "SELECT 'hello'"),
-        ("SELECT ?", (io.BytesIO(b"hello"),), "SELECT 'hello'"),
-        ("SELECT ?, ?", ("1", "1"), "SELECT '1', '1'"),
+        ("SELECT ? FROM x", ("1",), "SELECT '1' FROM x"),
+        ("SELECT '?' FROM x", (), "SELECT '?' FROM x"),
+        ("SELECT ? FROM x", (1,), "SELECT 1 FROM x"),
+        ("SELECT ? FROM x", (0,), "SELECT 0 FROM x"),
+        ("SELECT ? FROM x", (-1,), "SELECT -1 FROM x"),
+        ("SELECT ? FROM x", (255,), "SELECT 255 FROM x"),
+        ("SELECT ? FROM x", (-128,), "SELECT -128 FROM x"),
+        ("SELECT ? FROM x", (65535,), "SELECT 65535 FROM x"),
+        ("SELECT ? FROM x", (-32767,), "SELECT -32767 FROM x"),
+        ("SELECT ? FROM x", (4294967295,), "SELECT 4294967295 FROM x"),
+        ("SELECT ? FROM x", (-2147483648,), "SELECT -2147483648 FROM x"),
         (
-            "SELECT ?, ?, ?, ?",
+            "SELECT ? FROM x",
+            (18446744073709551615,),
+            "SELECT 18446744073709551615 FROM x",
+        ),
+        (
+            "SELECT ? FROM x",
+            (-9223372036854775808,),
+            "SELECT -9223372036854775808 FROM x",
+        ),
+        ("SELECT ? FROM x", (1.1,), "SELECT 1.1 FROM x"),
+        ("SELECT ? FROM x", (1.7e308,), "SELECT 1.7e+308 FROM x"),
+        ("SELECT ? FROM x", (None,), "SELECT NULL FROM x"),
+        ("SELECT ? FROM x", (b"hello",), "SELECT 'hello' FROM x"),
+        ("SELECT ? FROM x", (io.BytesIO(b"hello"),), "SELECT 'hello' FROM x"),
+        ("SELECT ?, ? FROM x", ("1", "1"), "SELECT '1', '1' FROM x"),
+        (
+            "SELECT ?, ?, ?, ? FROM x",
             ("1", None, io.BytesIO(b"hello"), 1),
-            "SELECT '1', NULL, 'hello', 1",
+            "SELECT '1', NULL, 'hello', 1 FROM x",
         ),
     ],
 )
@@ -222,26 +240,26 @@ async def test_connection_id(port: int, server: MysqlServer) -> None:
 
 
 @pytest.mark.asyncio
-async def test_replace_variables(
+async def test_replace_function(
     session: MockSession, server: MysqlServer, connect: ConnectFixture
 ) -> None:
     session.echo = True
 
-    with closing(await connect(user="levon_helm")) as conn:
+    with closing(await connect(user="levon_helm", database="db")) as conn:
         result = await query(conn, "SELECT CONNECTION_ID()")
-        parts = result[0]["sql"].split(" ")
-        assert parts[0] == "SELECT"
-        int(parts[1])  # no error raised
-
-        result = await query(conn, "SELECT @@version_comment")
-        parts = result[0]["sql"].split(" ")
-        assert parts[0] == "SELECT"
-        assert parts[1] == "'mysql-mimic'"
+        assert result[0]["CONNECTION_ID()"] is not None
 
         result = await query(conn, "SELECT CURRENT_USER")
-        parts = result[0]["sql"].split(" ")
-        assert parts[0] == "SELECT"
-        assert parts[1] == "'levon_helm'"
+        assert result[0]["CURRENT_USER"] == "levon_helm"
+
+        result = await query(conn, "SELECT USER()")
+        assert result[0]["USER()"] == "levon_helm"
+
+        result = await query(conn, "SELECT DATABASE()")
+        assert result[0]["DATABASE()"] == "db"
+
+        result = await query(conn, "SELECT schema()")
+        assert result[0]["SCHEMA()"] == "db"
 
 
 @pytest.mark.asyncio
@@ -257,13 +275,499 @@ async def test_query_attributes(
         ]
     ):
         session.last_query_attrs = None
-        sql = "SELECT 1"
+        sql = "SELECT 1 FROM x"
         query_attrs = {
             "idx": i,
             "str": "foo",
             "int": 1,
             "float": 1.1,
         }
-        result = await q(sql=sql, query_attributes=query_attrs)
+        await q(sql=sql, query_attributes=query_attrs)
         assert session.last_query_attrs == query_attrs
-        assert result[0]["sql"] == sql
+
+
+# pylint: disable=trailing-whitespace
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "sql, expected",
+    [
+        # SET session variable
+        (
+            "SET SESSION sql_mode = 'TRADITIONAL'; SELECT @@sql_mode",
+            [{"@@sql_mode": "TRADITIONAL"}],
+        ),
+        (
+            "SET LOCAL sql_mode = 'TRADITIONAL'; SELECT @@sql_mode",
+            [{"@@sql_mode": "TRADITIONAL"}],
+        ),
+        (
+            "SET @@SESSION.sql_mode = 'TRADITIONAL'; SELECT @@sql_mode",
+            [{"@@sql_mode": "TRADITIONAL"}],
+        ),
+        (
+            "SET @@LOCAL.sql_mode = 'TRADITIONAL'; SELECT @@sql_mode",
+            [{"@@sql_mode": "TRADITIONAL"}],
+        ),
+        (
+            "SET @@sql_mode = 'TRADITIONAL'; SELECT @@sql_mode",
+            [{"@@sql_mode": "TRADITIONAL"}],
+        ),
+        (
+            "SET sql_mode = 'TRADITIONAL'; SELECT @@sql_mode",
+            [{"@@sql_mode": "TRADITIONAL"}],
+        ),
+        (
+            "select @@version_comment limit 1",
+            [{"@@version_comment": "mysql-mimic"}],
+        ),
+        (
+            "SET character_set_results = NULL; SELECT @@character_set_results",
+            [{"@@character_set_results": "utf8mb4"}],
+        ),
+        (
+            "SET SQL_AUTO_IS_NULL = 0; SELECT @@sql_auto_is_null",
+            [{"@@sql_auto_is_null": False}],
+        ),
+        (
+            "set @@sql_select_limit=DEFAULT; SELECT @@sql_select_limit",
+            [{"@@sql_select_limit": None}],
+        ),
+        # SET referencing other parameters
+        (
+            """
+            SET character_set_connection = 'big5';
+            SET character_set_client = @@character_set_connection; SELECT @@character_set_client""",
+            [{"@@character_set_client": "big5"}],
+        ),
+        # SET multiple variables at once
+        (
+            "SET autocommit = OFF, sql_mode = 'TRADITIONAL'; SELECT @@autocommit, @@sql_mode",
+            [{"@@autocommit": False, "@@sql_mode": "TRADITIONAL"}],
+        ),
+        ## SET names
+        (
+            """
+            SET NAMES utf8;
+            SELECT @@character_set_client, @@SESSION.character_set_connection, @@character_set_results, @@collation_connection""",
+            [
+                {
+                    "@@character_set_client": "utf8",
+                    "@@SESSION.character_set_connection": "utf8",
+                    "@@character_set_results": "utf8",
+                    "@@collation_connection": "utf8_general_ci",
+                }
+            ],
+        ),
+        (
+            """
+            SET NAMES big5; SET NAMES DEFAULT;
+            SELECT @@character_set_client, @@SESSION.character_set_connection, @@character_set_results, @@collation_connection""",
+            [
+                {
+                    "@@character_set_client": "utf8mb4",
+                    "@@SESSION.character_set_connection": "utf8mb4",
+                    "@@character_set_results": "utf8mb4",
+                    "@@collation_connection": "utf8mb4_general_ci",
+                }
+            ],
+        ),
+        (
+            """
+            SET NAMES utf8 COLLATE utf8mb4_bin;
+            SELECT @@character_set_client, @@SESSION.character_set_connection, @@character_set_results, @@collation_connection""",
+            [
+                {
+                    "@@character_set_client": "utf8",
+                    "@@SESSION.character_set_connection": "utf8",
+                    "@@character_set_results": "utf8",
+                    "@@collation_connection": "utf8mb4_bin",
+                }
+            ],
+        ),
+        (
+            """
+            set names 'big5' collate 'big5_chinese_ci';
+            SELECT @@character_set_client, @@SESSION.character_set_connection, @@character_set_results, @@collation_connection""",
+            [
+                {
+                    "@@character_set_client": "big5",
+                    "@@SESSION.character_set_connection": "big5",
+                    "@@character_set_results": "big5",
+                    "@@collation_connection": "big5_chinese_ci",
+                }
+            ],
+        ),
+        # SET character set
+        (
+            """
+            SET CHARSET 'utf8';
+            SELECT @@character_set_client, @@SESSION.character_set_connection, @@character_set_results""",
+            [
+                {
+                    "@@character_set_client": "utf8",
+                    "@@SESSION.character_set_connection": "utf8mb4",
+                    "@@character_set_results": "utf8",
+                }
+            ],
+        ),
+        (
+            """
+            SET CHARSET utf8;
+            SELECT @@character_set_client, @@SESSION.character_set_connection, @@character_set_results""",
+            [
+                {
+                    "@@character_set_client": "utf8",
+                    "@@SESSION.character_set_connection": "utf8mb4",
+                    "@@character_set_results": "utf8",
+                }
+            ],
+        ),
+        (
+            """
+            SET CHARSET utf8; SET CHARSET DEFAULT;
+            SELECT @@character_set_client, @@SESSION.character_set_connection, @@character_set_results""",
+            [
+                {
+                    "@@character_set_client": "utf8mb4",
+                    "@@SESSION.character_set_connection": "utf8mb4",
+                    "@@character_set_results": "utf8mb4",
+                }
+            ],
+        ),
+        # SET transaction
+        (
+            """
+            set session transaction read only;
+            SELECT @@session.transaction_read_only""",
+            [
+                {
+                    "@@session.transaction_read_only": True,
+                }
+            ],
+        ),
+        (
+            """
+            SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ WRITE;
+            SELECT @@transaction_isolation, @@transaction_read_only""",
+            [
+                {
+                    "@@transaction_isolation": "REPEATABLE-READ",
+                    "@@transaction_read_only": False,
+                }
+            ],
+        ),
+        # Types
+        ("SET autocommit = OFF; SELECT @@autocommit AS x", [{"x": False}]),
+        ("SET autocommit = ON; SELECT @@autocommit AS x", [{"x": True}]),
+        ("SET autocommit = 1; SELECT @@autocommit AS x", [{"x": True}]),
+        ("SET autocommit = 0; SELECT @@autocommit AS x", [{"x": False}]),
+        (
+            "SET lower_case_table_names = 1; SELECT @@lower_case_table_names AS x",
+            [{"x": 1}],
+        ),
+        # Simple queries
+        ("SELECT 1, 2", [{"_col_0": 1, "_col_1": 2}]),
+        # USE
+        ("USE db2; SELECT DATABASE()", [{"DATABASE()": "db2"}]),
+        # INFORMATION_SCHEMA
+        (
+            """
+        SELECT
+          *
+        FROM information_schema.schemata
+        ORDER BY schema_name""",
+            [
+                {
+                    "catalog_name": "def",
+                    "schema_name": schema_name,
+                    "default_character_set_name": "utf8mb4",
+                    "default_collation_name": "utf8mb4_general_ci",
+                    "sql_path": None,
+                }
+                for schema_name in ["db", "information_schema", "mysql"]
+            ],
+        ),
+        (
+            """
+        SELECT
+          *
+        FROM information_schema.tables
+        ORDER BY table_schema, table_name""",
+            [
+                {
+                    "auto_increment": None,
+                    "avg_row_length": None,
+                    "check_time": None,
+                    "checksum": None,
+                    "create_options": None,
+                    "create_time": None,
+                    "data_free": None,
+                    "data_length": None,
+                    "engine": "MinervaSQL",
+                    "index_length": None,
+                    "max_data_length": None,
+                    "row_format": None,
+                    "table_catalog": "def",
+                    "table_collation": "utf8mb4_general_ci ",
+                    "table_comment": None,
+                    "table_name": table_name,
+                    "table_rows": None,
+                    "table_schema": table_schema,
+                    "table_type": table_type,
+                    "update_time": None,
+                    "version": "1.0",
+                }
+                for table_schema, table_name, table_type in sorted(
+                    [
+                        ("db", "x", "BASE TABLE"),
+                        ("db", "y", "BASE TABLE"),
+                        *[
+                            ("information_schema", name, "SYSTEM TABLE")
+                            for name in INFO_SCHEMA["information_schema"]
+                        ],
+                        *[
+                            ("mysql", name, "SYSTEM TABLE")
+                            for name in INFO_SCHEMA["mysql"]
+                        ],
+                    ]
+                )
+            ],
+        ),
+        (
+            """
+        SELECT
+          table_catalog,
+          table_schema,
+          table_name,
+          column_name,
+          ordinal_position,
+          data_type
+        FROM information_schema.columns
+        WHERE table_schema = 'db' AND table_name LIKE 'x' AND column_name NOT LIKE 'a'
+        ORDER BY table_schema, table_name, column_name""",
+            [
+                {
+                    "table_catalog": "def",
+                    "table_schema": "db",
+                    "table_name": "x",
+                    "column_name": "b",
+                    "ordinal_position": 1,
+                    "data_type": "TEXT",
+                }
+            ],
+        ),
+        (
+            """
+        SELECT
+          *
+        FROM information_schema.key_column_usage""",
+            [],
+        ),
+        (
+            queries.TABLEAU_SCHEMATA,
+            [
+                {
+                    "_col_0": None,
+                    "_col_1": None,
+                    "_col_2": None,
+                    "schema_name": schema_name,
+                }
+                for schema_name in ["db", "information_schema", "mysql"]
+            ],
+        ),
+        (
+            queries.TABLEAU_TABLES,
+            [
+                {
+                    "_col_2": "TABLE",
+                    "table_comment": None,
+                    "table_name": table_name,
+                    "table_schema": "db",
+                }
+                for table_name in ["x", "y"]
+            ],
+        ),
+        (
+            queries.TABLEAU_COLUMNS,
+            [],
+        ),
+        (
+            queries.TABLEAU_INDEXES_2,
+            [],
+        ),
+        (
+            queries.TABLEAU_INDEXES_1,
+            [],
+        ),
+        # SHOW
+        (
+            "show variables",
+            [
+                {"Value": "1", "Variable_name": "auto_increment_increment"},
+                {"Value": "False", "Variable_name": "autocommit"},
+                {"Value": "utf8mb4", "Variable_name": "character_set_client"},
+                {"Value": "utf8mb4", "Variable_name": "character_set_connection"},
+                {"Value": "utf8mb4", "Variable_name": "character_set_database"},
+                {"Value": "utf8mb4", "Variable_name": "character_set_results"},
+                {"Value": "utf8mb4", "Variable_name": "character_set_server"},
+                {
+                    "Value": "utf8mb4_general_ci",
+                    "Variable_name": "collation_connection",
+                },
+                {"Value": "utf8mb4_general_ci", "Variable_name": "collation_database"},
+                {"Value": "utf8mb4_general_ci", "Variable_name": "collation_server"},
+                {"Value": "mysql-mimic", "Variable_name": "default_storage_engine"},
+                {"Value": "mysql-mimic", "Variable_name": "default_tmp_storage_engine"},
+                {"Value": "OFF", "Variable_name": "event_scheduler"},
+                {"Value": "levon_helm", "Variable_name": "external_user"},
+                {"Value": "", "Variable_name": "init_connect"},
+                {"Value": "28800", "Variable_name": "interactive_timeout"},
+                {"Value": "MIT", "Variable_name": "license"},
+                {"Value": "0", "Variable_name": "lower_case_table_names"},
+                {"Value": "67108864", "Variable_name": "max_allowed_packet"},
+                {"Value": "28800", "Variable_name": "net_write_timeout"},
+                {"Value": "False", "Variable_name": "performance_schema"},
+                {"Value": "False", "Variable_name": "sql_auto_is_null"},
+                {"Value": "ANSI", "Variable_name": "sql_mode"},
+                {"Value": None, "Variable_name": "sql_select_limit"},
+                {"Value": "UTC", "Variable_name": "system_time_zone"},
+                {"Value": "UTC", "Variable_name": "time_zone"},
+                {"Value": "READ-COMMITTED", "Variable_name": "transaction_isolation"},
+                {"Value": "False", "Variable_name": "transaction_read_only"},
+                {"Value": "8.0.29", "Variable_name": "version"},
+                {"Value": "mysql-mimic", "Variable_name": "version_comment"},
+                {"Value": "28800", "Variable_name": "wait_timeout"},
+            ],
+        ),
+        (
+            "SHOW  SESSION  VARIABLES  LIKE 'version_%'",
+            [{"Value": "mysql-mimic", "Variable_name": "version_comment"}],
+        ),
+        ("show index from x", []),
+        (
+            "show columns from x like '%'",
+            [
+                {
+                    "Default": None,
+                    "Extra": None,
+                    "Field": "a",
+                    "Key": None,
+                    "Null": "YES",
+                    "Type": "TEXT",
+                },
+                {
+                    "Default": None,
+                    "Extra": None,
+                    "Field": "b",
+                    "Key": None,
+                    "Null": "YES",
+                    "Type": "TEXT",
+                },
+            ],
+        ),
+        (
+            "show tables from information_schema like 'k%'",
+            [
+                {"Table_name": "key_column_usage"},
+            ],
+        ),
+        (
+            "show full tables from db like 'x'",
+            [{"Table_name": "x", "Table_type": "BASE TABLE"}],
+        ),
+        ("show databases like '_n%'", [{"Database": "information_schema"}]),
+        # DataGrip
+        (
+            queries.DATA_GRIP_VARIABLES,
+            [
+                {
+                    "auto_increment_increment": 1,
+                    "character_set_client": "utf8mb4",
+                    "character_set_connection": "utf8mb4",
+                    "character_set_results": "utf8mb4",
+                    "character_set_server": "utf8mb4",
+                    "collation_connection": "utf8mb4_general_ci",
+                    "collation_server": "utf8mb4_general_ci",
+                    "init_connect": "",
+                    "interactive_timeout": 28800,
+                    "license": "MIT",
+                    "lower_case_table_names": 0,
+                    "max_allowed_packet": 67108864,
+                    "net_write_timeout": 28800,
+                    "performance_schema": 0,
+                    "sql_mode": "ANSI",
+                    "system_time_zone": "UTC",
+                    "time_zone": "UTC",
+                    "transaction_isolation": "READ-COMMITTED",
+                    "wait_timeout": 28800,
+                }
+            ],
+        ),
+        (
+            "select database(), schema(), left(user(),instr(concat(user(),'@'),'@')-1)",
+            [{"DATABASE()": None, "SCHEMA()": None, "_col_2": "levon_helm"}],
+        ),
+        (queries.DATA_GRIP_PARAMETERS, []),
+        (
+            queries.DATA_GRIP_TABLES,
+            [
+                {
+                    "ref_generation": None,
+                    "remarks": None,
+                    "self_referencing_col_name": None,
+                    "table_cat": "db",
+                    "table_name": "x",
+                    "table_schem": None,
+                    "table_type": "TABLE",
+                    "type_cat": None,
+                    "type_name": None,
+                    "type_schem": None,
+                },
+                {
+                    "ref_generation": None,
+                    "remarks": None,
+                    "self_referencing_col_name": None,
+                    "table_cat": "db",
+                    "table_name": "y",
+                    "table_schem": None,
+                    "table_type": "TABLE",
+                    "type_cat": None,
+                    "type_name": None,
+                    "type_schem": None,
+                },
+            ],
+        ),
+    ],
+)
+async def test_commands(
+    session: MockSession,
+    server: MysqlServer,
+    query_fixture: QueryFixture,
+    sql: str,
+    expected: List[Dict[str, Any]],
+) -> None:
+    result = await query_fixture(sql)
+    assert expected == list(result)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "sql,  msg",
+    [
+        (
+            "SET GLOBAL sql_mode = 'TRADITIONAL'",
+            "Cannot SET variable sql_mode with scope GLOBAL",
+        ),
+        ("SET @foo = 'bar'", "User-defined variables not supported yet"),
+    ],
+)
+async def test_unsupported_commands(
+    session: MockSession,
+    server: MysqlServer,
+    query_fixture: QueryFixture,
+    sql: str,
+    msg: str,
+) -> None:
+    with pytest.raises(Exception) as ctx:
+        await query_fixture(sql)
+    assert msg in str(ctx.value)

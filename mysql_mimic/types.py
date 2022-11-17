@@ -1,4 +1,4 @@
-"""Basic data types of the mysql protocol"""
+from __future__ import annotations
 import io
 import struct
 

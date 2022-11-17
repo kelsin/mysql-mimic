@@ -15,6 +15,7 @@ setup(
     license="MIT",
     packages=find_packages(),
     python_requires=">=3.6",
+    install_requires=["sqlglot>=10.0.3"],
     extras_require={
         "dev": [
             "aiomysql",

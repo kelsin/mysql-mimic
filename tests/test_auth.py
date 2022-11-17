@@ -9,7 +9,6 @@ from mysql.connector.plugins.mysql_clear_password import MySQLClearPasswordAuthP
 from mysql_mimic import User, MysqlServer
 from mysql_mimic.auth import (
     NativePasswordAuthPlugin,
-    GullibleAuthPlugin,
     AbstractClearPasswordAuthPlugin,
     AuthPlugin,
     NoLoginAuthPlugin,
@@ -52,7 +51,9 @@ NO_PLUGIN_USER = "miss_moses"
 def users() -> Dict[str, User]:
     return {
         SIMPLE_AUTH_USER: User(
-            name=SIMPLE_AUTH_USER, auth_plugin=GullibleAuthPlugin.name
+            name=SIMPLE_AUTH_USER,
+            auth_string=None,
+            auth_plugin=NativePasswordAuthPlugin.name,
         ),
         PASSWORD_AUTH_USER: User(
             name=PASSWORD_AUTH_USER,
@@ -90,8 +91,8 @@ def users() -> Dict[str, User]:
             TEST_PLUGIN_AUTH_PASSWORD,
             TEST_PLUGIN_AUTH_PLUGIN,
         ),
-        ([GullibleAuthPlugin()], SIMPLE_AUTH_USER, None, None),
-        ([TestPlugin(), GullibleAuthPlugin()], SIMPLE_AUTH_USER, None, None),
+        ([NativePasswordAuthPlugin()], SIMPLE_AUTH_USER, None, None),
+        ([TestPlugin(), NativePasswordAuthPlugin()], SIMPLE_AUTH_USER, None, None),
         (None, SIMPLE_AUTH_USER, None, None),
     ],
 )
@@ -104,7 +105,6 @@ async def test_auth(
     password: Optional[str],
     auth_plugin: Optional[str],
 ) -> None:
-    session.use_sqlite = True
     kwargs = {"user": username, "password": password, "auth_plugin": auth_plugin}
     kwargs = {k: v for k, v in kwargs.items() if v is not None}
     with closing(await connect(**kwargs)) as conn:
@@ -124,7 +124,6 @@ async def test_auth_secondary_password(
     connect: ConnectFixture,
     auth_plugins: List[AuthPlugin],
 ) -> None:
-    session.use_sqlite = True
     with closing(
         await connect(
             user=PASSWORD_AUTH_USER,
@@ -147,11 +146,6 @@ async def test_auth_secondary_password(
             (TEST_PLUGIN_AUTH_USER, TEST_PLUGIN_AUTH_PASSWORD, TEST_PLUGIN_AUTH_PLUGIN),
         ),
         (
-            [GullibleAuthPlugin()],
-            (TEST_PLUGIN_AUTH_USER, TEST_PLUGIN_AUTH_PASSWORD, TEST_PLUGIN_AUTH_PLUGIN),
-            (PASSWORD_AUTH_USER, PASSWORD_AUTH_PASSWORD, PASSWORD_AUTH_PLUGIN),
-        ),
-        (
             [NativePasswordAuthPlugin()],
             (PASSWORD_AUTH_USER, PASSWORD_AUTH_PASSWORD, PASSWORD_AUTH_PLUGIN),
             (PASSWORD_AUTH_USER, PASSWORD_AUTH_PASSWORD, PASSWORD_AUTH_PLUGIN),
@@ -166,7 +160,6 @@ async def test_change_user(
     user1: Tuple[str, str, str],
     user2: Tuple[str, str, str],
 ) -> None:
-    session.use_sqlite = True
     kwargs1 = {"user": user1[0], "password": user1[1], "auth_plugin": user1[2]}
     kwargs1 = {k: v for k, v in kwargs1.items() if v is not None}
 
@@ -183,7 +176,7 @@ async def test_change_user(
 @pytest.mark.parametrize(
     "auth_plugins,username,password,auth_plugin,msg",
     [
-        ([GullibleAuthPlugin()], None, None, None, "User  does not exist"),
+        ([NativePasswordAuthPlugin()], None, None, None, "User  does not exist"),
         (
             [TestPlugin()],
             PASSWORD_AUTH_USER,
@@ -193,7 +186,7 @@ async def test_change_user(
         ),
         ([NoLoginAuthPlugin()], NO_PLUGIN_USER, None, None, "Access denied"),
         (
-            [GullibleAuthPlugin(), NoLoginAuthPlugin()],
+            [NativePasswordAuthPlugin(), NoLoginAuthPlugin()],
             NO_PLUGIN_USER,
             None,
             None,
@@ -211,7 +204,6 @@ async def test_access_denied(
     auth_plugin: Optional[str],
     msg: str,
 ) -> None:
-    session.use_sqlite = True
     kwargs = {"user": username, "password": password, "auth_plugin": auth_plugin}
     kwargs = {k: v for k, v in kwargs.items() if v is not None}
 

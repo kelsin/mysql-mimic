@@ -1,6 +1,6 @@
+from __future__ import annotations
 import asyncio
 import functools
-import sqlite3
 from ssl import SSLContext
 from typing import (
     Optional,
@@ -13,18 +13,18 @@ from typing import (
     Sequence,
     AsyncGenerator,
     Type,
-    Tuple,
 )
 
 import aiomysql
-import mysql.connector
 import sqlalchemy.engine
+import mysql.connector
 from mysql.connector.connection import (
     MySQLCursorPrepared,
     MySQLCursorDict,
     MySQLConnection,
 )
 from mysql.connector.cursor import MySQLCursor
+from sqlglot import expressions as exp
 from sqlalchemy.ext.asyncio import create_async_engine
 import pytest
 import pytest_asyncio
@@ -35,8 +35,8 @@ from mysql_mimic.auth import (
     AuthPlugin,
     IdentityProvider,
 )
-from mysql_mimic.connection import Connection
 from mysql_mimic.results import AllowedResult
+from mysql_mimic.schema import InfoSchema
 
 
 class PreparedDictCursor(MySQLCursorPrepared):
@@ -54,33 +54,30 @@ class MockSession(Session):
         super().__init__()
         self.return_value: Any = None
         self.echo = False
-        self.sqlite = sqlite3.connect(":memory:")
-        self.use_sqlite = False
-        self.connection: Optional[Connection] = None
         self.last_query_attrs: Optional[Dict[str, str]] = None
         self.users: Optional[Dict[str, User]] = None
-        self.columns: Dict[Tuple[str, str], List[dict]] = {}
 
-    async def init(self, connection: Connection) -> None:
-        self.connection = connection
-
-    async def query(self, sql: str, attrs: Dict[str, str]) -> AllowedResult:
+    async def query(
+        self, expression: exp.Expression, sql: str, attrs: Dict[str, str]
+    ) -> AllowedResult:
         self.last_query_attrs = attrs
-        if self.use_sqlite:
-            cursor = self.sqlite.execute(sql)
-            return cursor.fetchall(), [d[0] for d in cursor.description]
         if self.echo:
             return [(sql,)], ["sql"]
         return self.return_value
 
-    async def show_columns(self, database: str, table: str) -> Sequence[dict]:
-        return self.columns.get((database, table), [])
-
-    async def show_tables(self, database: str) -> Sequence[str]:
-        return [table for db, table in self.columns if db == database]
-
-    async def show_databases(self) -> Sequence[str]:
-        return [db for db, _ in self.columns]
+    async def schema(self) -> dict | InfoSchema:
+        return {
+            "db": {
+                "x": {
+                    "a": "TEXT",
+                    "b": "TEXT",
+                },
+                "y": {
+                    "b": "TEXT",
+                    "c": "TEXT",
+                },
+            }
+        }
 
 
 class MockIdentityProvider(IdentityProvider):
@@ -182,7 +179,7 @@ def connect(port: int) -> ConnectFixture:
 
 @pytest_asyncio.fixture
 async def mysql_connector_conn(connect: ConnectFixture) -> MySQLConnection:
-    conn = await connect()
+    conn = await connect(user="levon_helm")
     try:
         yield conn
     finally:
@@ -191,13 +188,13 @@ async def mysql_connector_conn(connect: ConnectFixture) -> MySQLConnection:
 
 @pytest_asyncio.fixture
 async def aiomysql_conn(port: int) -> aiomysql.Connection:
-    async with aiomysql.connect(port=port) as conn:
+    async with aiomysql.connect(port=port, user="levon_helm") as conn:
         yield conn
 
 
 @pytest_asyncio.fixture
 async def sqlalchemy_engine(port: int) -> sqlalchemy.engine.Engine:
-    engine = create_async_engine(url=f"mysql+aiomysql://127.0.0.1:{port}")
+    engine = create_async_engine(url=f"mysql+aiomysql://levon_helm@127.0.0.1:{port}")
     try:
         yield engine
     finally:
@@ -208,8 +205,8 @@ async def query(
     conn: MySQLConnection,
     sql: str,
     cursor_class: Type[MySQLCursor] = MySQLCursorDict,
-    params: Sequence[Any] = None,
-    query_attributes: Dict[str, str] = None,
+    params: Sequence[Any] | None = None,
+    query_attributes: Dict[str, str] | None = None,
 ) -> Sequence[Any]:
     cursor = await to_thread(conn.cursor, cursor_class=cursor_class)
     if query_attributes:

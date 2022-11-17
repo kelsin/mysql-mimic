@@ -48,6 +48,9 @@ class ResultColumn:
     def binary_encode(self, val: Any) -> bytes:
         return self.binary_encoder(self, val)
 
+    def __repr__(self) -> str:
+        return f"ResultColumn({self.name} {self.type.name})"
+
 
 @dataclass
 class ResultSet:
@@ -56,25 +59,6 @@ class ResultSet:
 
     def __bool__(self) -> bool:
         return bool(self.columns)
-
-
-@dataclass
-class Column:
-    """
-    Column data for a SHOW COLUMNS statement
-
-    https://dev.mysql.com/doc/refman/8.0/en/show-columns.html
-    """
-
-    name: str
-    type: str
-    collation: str = "NULL"
-    null: str = "YES"
-    key: Optional[str] = None
-    default: Optional[str] = None
-    extra: Optional[str] = None
-    privileges: Optional[str] = None
-    comment: Optional[str] = None
 
 
 AllowedColumn = Union[ResultColumn, str]

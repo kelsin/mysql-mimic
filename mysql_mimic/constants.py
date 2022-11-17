@@ -10,4 +10,7 @@ DEFAULT_SERVER_CAPABILITIES = (
     | Capabilities.CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA
     | Capabilities.CLIENT_SECURE_CONNECTION
     | Capabilities.CLIENT_LONG_PASSWORD
+    | Capabilities.CLIENT_ODBC
+    | Capabilities.CLIENT_INTERACTIVE
+    | Capabilities.CLIENT_IGNORE_SPACE
 )
