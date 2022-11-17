@@ -14,6 +14,7 @@ import aiomysql
 from mysql_mimic import ResultColumn, ResultSet, MysqlServer
 from mysql_mimic.charset import CharacterSet
 from mysql_mimic.results import AllowedResult
+from mysql_mimic.schema import INFO_SCHEMA
 from mysql_mimic.types import ColumnType
 from tests.conftest import PreparedDictCursor, query, MockSession, ConnectFixture
 from tests.fixtures import queries
@@ -483,7 +484,7 @@ async def test_query_attributes(
                     "default_collation_name": "utf8mb4_general_ci",
                     "sql_path": None,
                 }
-                for schema_name in ["db", "information_schema"]
+                for schema_name in ["db", "information_schema", "mysql"]
             ],
         ),
         (
@@ -516,18 +517,20 @@ async def test_query_attributes(
                     "update_time": None,
                     "version": "1.0",
                 }
-                for table_name, table_schema, table_type in [
-                    ("x", "db", "BASE TABLE"),
-                    ("y", "db", "BASE TABLE"),
-                    ("character_sets", "information_schema", "SYSTEM TABLE"),
-                    ("columns", "information_schema", "SYSTEM TABLE"),
-                    ("key_column_usage", "information_schema", "SYSTEM TABLE"),
-                    ("parameters", "information_schema", "SYSTEM TABLE"),
-                    ("referential_constraints", "information_schema", "SYSTEM TABLE"),
-                    ("schemata", "information_schema", "SYSTEM TABLE"),
-                    ("statistics", "information_schema", "SYSTEM TABLE"),
-                    ("tables", "information_schema", "SYSTEM TABLE"),
-                ]
+                for table_schema, table_name, table_type in sorted(
+                    [
+                        ("db", "x", "BASE TABLE"),
+                        ("db", "y", "BASE TABLE"),
+                        *[
+                            ("information_schema", name, "SYSTEM TABLE")
+                            for name in INFO_SCHEMA["information_schema"]
+                        ],
+                        *[
+                            ("mysql", name, "SYSTEM TABLE")
+                            for name in INFO_SCHEMA["mysql"]
+                        ],
+                    ]
+                )
             ],
         ),
         (
@@ -569,7 +572,7 @@ async def test_query_attributes(
                     "_col_2": None,
                     "schema_name": schema_name,
                 }
-                for schema_name in ["db", "information_schema"]
+                for schema_name in ["db", "information_schema", "mysql"]
             ],
         ),
         (
@@ -613,6 +616,9 @@ async def test_query_attributes(
                 },
                 {"Value": "utf8mb4_general_ci", "Variable_name": "collation_database"},
                 {"Value": "utf8mb4_general_ci", "Variable_name": "collation_server"},
+                {"Value": "mysql-mimic", "Variable_name": "default_storage_engine"},
+                {"Value": "mysql-mimic", "Variable_name": "default_tmp_storage_engine"},
+                {"Value": "OFF", "Variable_name": "event_scheduler"},
                 {"Value": "levon_helm", "Variable_name": "external_user"},
                 {"Value": "", "Variable_name": "init_connect"},
                 {"Value": "28800", "Variable_name": "interactive_timeout"},
@@ -702,6 +708,35 @@ async def test_query_attributes(
             [{"DATABASE()": None, "SCHEMA()": None, "_col_2": "levon_helm"}],
         ),
         (queries.DATA_GRIP_PARAMETERS, []),
+        (
+            queries.DATA_GRIP_TABLES,
+            [
+                {
+                    "ref_generation": None,
+                    "remarks": None,
+                    "self_referencing_col_name": None,
+                    "table_cat": "db",
+                    "table_name": "x",
+                    "table_schem": None,
+                    "table_type": "TABLE",
+                    "type_cat": None,
+                    "type_name": None,
+                    "type_schem": None,
+                },
+                {
+                    "ref_generation": None,
+                    "remarks": None,
+                    "self_referencing_col_name": None,
+                    "table_cat": "db",
+                    "table_name": "y",
+                    "table_schem": None,
+                    "table_type": "TABLE",
+                    "type_cat": None,
+                    "type_name": None,
+                    "type_schem": None,
+                },
+            ],
+        ),
     ],
 )
 async def test_commands(

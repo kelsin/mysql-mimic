@@ -42,7 +42,6 @@ async def main() -> None:
     logging.basicConfig(level=logging.INFO)
     identity_provider = CustomIdentityProvider()
     server = MysqlServer(identity_provider=identity_provider)
-    await server.start_server(port=3306)
     await server.serve_forever()
 
 

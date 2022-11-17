@@ -28,7 +28,6 @@ class DbapiProxySession(Session):
 async def main():
     logging.basicConfig(level=logging.INFO)
     server = MysqlServer(session_factory=DbapiProxySession)
-    await server.start_server()
     await server.serve_forever()
 
 

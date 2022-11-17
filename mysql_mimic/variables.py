@@ -47,6 +47,9 @@ SYSTEM_VARIABLES: dict[str, VariableSchema] = {
     "version": (str, "8.0.29", False),
     "version_comment": (str, "mysql-mimic", False),
     "wait_timeout": (int, 28800, True),
+    "event_scheduler": (str, "OFF", True),
+    "default_storage_engine": (str, "mysql-mimic", True),
+    "default_tmp_storage_engine": (str, "mysql-mimic", True),
 }
 
 

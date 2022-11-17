@@ -27,6 +27,7 @@ from mysql_mimic.schema import (
     like_to_regex,
     BaseInfoSchema,
     ensure_info_schema,
+    INFO_SCHEMA,
 )
 from mysql_mimic.utils import find_dbs, lower_case_identifiers
 from mysql_mimic.variables import Variables, SessionVariables, GlobalVariables, DEFAULT
@@ -344,8 +345,8 @@ class Session(BaseSession):
     ) -> AllowedResult:
         """Intercept queries to INFORMATION_SCHEMA tables"""
         dbs = find_dbs(expression)
-        if (self.database and self.database.lower() == "information_schema") or (
-            dbs and all(db == "information_schema" for db in dbs)
+        if (self.database and self.database.lower() in INFO_SCHEMA) or (
+            dbs and all(db in INFO_SCHEMA for db in dbs)
         ):
             return await self._query_info_schema(expression)
         return None

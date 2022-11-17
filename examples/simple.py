@@ -38,10 +38,6 @@ class MySession(Session):
 async def main():
     logging.basicConfig(level=logging.INFO)
     server = MysqlServer(session_factory=MySession)
-    await server.start_unix_server(
-        # By default, the `mysql` command tries to connect to this socket
-        path="/tmp/mysql.sock"
-    )
     await server.serve_forever()
 
 

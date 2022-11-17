@@ -29,35 +29,19 @@ class Column:
 
 INFO_SCHEMA = {
     "information_schema": {
-        "schemata": {
-            "catalog_name": "TEXT",
-            "schema_name": "TEXT",
-            "default_character_set_name": "TEXT",
-            "default_collation_name": "TEXT",
-            "sql_path": "TEXT",
+        "character_sets": {
+            "character_set_name": "TEXT",
+            "default_collate_name": "TEXT",
+            "description": "TEXT",
+            "maxlen": "INT",
         },
-        "tables": {
-            "table_catalog": "TEXT",
-            "table_schema": "TEXT",
-            "table_name": "TEXT",
-            "table_type": "TEXT",
-            "engine": "TEXT",
-            "version": "TEXT",
-            "row_format": "TEXT",
-            "table_rows": "INT",
-            "avg_row_length": "INT",
-            "data_length": "INT",
-            "max_data_length": "INT",
-            "index_length": "INT",
-            "data_free": "INT",
-            "auto_increment": "INT",
-            "create_time": "TEXT",
-            "update_time": "TEXT",
-            "check_time": "TEXT",
-            "table_collation": "TEXT",
-            "checksum": "TEXT",
-            "create_options": "TEXT",
-            "table_comment": "TEXT",
+        "collations": {
+            "collation_name": "TEXT",
+            "character_set_name": "TEXT",
+            "id": "TEXT",
+            "is_default": "TEXT",
+            "is_compiled": "TEXT",
+            "sortlen": "INT",
         },
         "columns": {
             "table_catalog": "TEXT",
@@ -83,6 +67,41 @@ INFO_SCHEMA = {
             "generation_expression": "TEXT",
             "srs_id": "TEXT",
         },
+        "column_privileges": {
+            "grantee": "TEXT",
+            "table_catalog": "TEXT",
+            "table_schema": "TEXT",
+            "table_name": "TEXT",
+            "column_name": "TEXT",
+            "privilege_type": "TEXT",
+            "is_grantable": "TEXT",
+        },
+        "events": {
+            "event_catalog": "TEXT",
+            "event_schema": "TEXT",
+            "event_name": "TEXT",
+            "definer": "TEXT",
+            "time_zone": "TEXT",
+            "event_body": "TEXT",
+            "event_definition": "TEXT",
+            "event_type": "TEXT",
+            "execute_at": "TEXT",
+            "interval_value": "INT",
+            "interval_field": "TEXT",
+            "sql_mode": "TEXT",
+            "starts": "TEXT",
+            "ends": "TEXT",
+            "status": "TEXT",
+            "on_completion": "TEXT",
+            "created": "TEXT",
+            "last_altered": "TEXT",
+            "last_executed": "TEXT",
+            "event_comment": "TEXT",
+            "originator": "INT",
+            "character_set_client": "TEXT",
+            "collation_connection": "TEXT",
+            "database_collation": "TEXT",
+        },
         "key_column_usage": {
             "constraint_catalog": "TEXT",
             "constraint_schema": "TEXT",
@@ -97,6 +116,51 @@ INFO_SCHEMA = {
             "referenced_table_name": "TEXT",
             "referenced_column_name": "TEXT",
         },
+        "parameters": {
+            "specific_catalog": "TEXT",
+            "specific_schema": "TEXT",
+            "specific_name": "TEXT",
+            "ordinal_position": "INT",
+            "parameter_mode": "TEXT",
+            "parameter_name": "TEXT",
+            "data_type": "TEXT",
+            "character_maximum_length": "INT",
+            "character_octet_length": "INT",
+            "numeric_precision": "INT",
+            "numeric_scale": "INT",
+            "datetime_precision": "INT",
+            "character_set_name": "TEXT",
+            "collation_name": "TEXT",
+            "dtd_identifier": "TEXT",
+            "routine_type": "TEXT",
+        },
+        "partitions": {
+            "table_catalog": "TEXT",
+            "table_schema": "TEXT",
+            "table_name": "TEXT",
+            "partition_name": "TEXT",
+            "subpartition_name": "TEXT",
+            "partition_ordinal_position": "INT",
+            "subpartition_ordinal_position": "INT",
+            "partition_method": "TEXT",
+            "subpartition_method": "TEXT",
+            "partition_expression": "TEXT",
+            "subpartition_expression": "TEXT",
+            "partition_description": "TEXT",
+            "table_rows": "INT",
+            "avg_row_length": "INT",
+            "data_length": "INT",
+            "max_data_length": "INT",
+            "index_length": "INT",
+            "data_free": "INT",
+            "create_time": "TEXT",
+            "update_time": "TEXT",
+            "check_time": "TEXT",
+            "checksum": "TEXT",
+            "partition_comment": "TEXT",
+            "nodegroup": "TEXT",
+            "tablespace_name": "TEXT",
+        },
         "referential_constraints": {
             "constraint_catalog": "TEXT",
             "constraint_schema": "TEXT",
@@ -110,11 +174,52 @@ INFO_SCHEMA = {
             "table_name": "TEXT",
             "referenced_table_name": "TEXT",
         },
-        "character_sets": {
+        "routines": {
+            "specific_name": "TEXT",
+            "routine_catalog": "TEXT",
+            "routine_schema": "TEXT",
+            "routine_name": "TEXT",
+            "routine_type": "TEXT",
+            "data_type": "TEXT",
+            "character_maximum_length": "INT",
+            "character_octet_length": "INT",
+            "numeric_precision": "INT",
+            "numeric_scale": "INT",
+            "datetime_precision": "INT",
             "character_set_name": "TEXT",
-            "default_collate_name": "TEXT",
-            "description": "TEXT",
-            "maxlen": "INT",
+            "collation_name": "TEXT",
+            "dtd_identifier": "TEXT",
+            "routine_body": "TEXT",
+            "routine_definition": "TEXT",
+            "external_name": "TEXT",
+            "external_language": "TEXT",
+            "parameter_style": "TEXT",
+            "is_deterministic": "TEXT",
+            "sql_data_access": "TEXT",
+            "sql_path": "TEXT",
+            "security_type": "TEXT",
+            "created": "TEXT",
+            "last_altered": "TEXT",
+            "sql_mode": "TEXT",
+            "routine_comment": "TEXT",
+            "definer": "TEXT",
+            "character_set_client": "TEXT",
+            "collation_connection": "TEXT",
+            "database_collation": "TEXT",
+        },
+        "schema_privileges": {
+            "grantee": "TEXT",
+            "table_catalog": "TEXT",
+            "table_schema": "TEXT",
+            "privilege_type": "TEXT",
+            "is_grantable": "TEXT",
+        },
+        "schemata": {
+            "catalog_name": "TEXT",
+            "schema_name": "TEXT",
+            "default_character_set_name": "TEXT",
+            "default_collation_name": "TEXT",
+            "sql_path": "TEXT",
         },
         "statistics": {
             "table_catalog": "TEXT",
@@ -136,25 +241,161 @@ INFO_SCHEMA = {
             "is_visible": "TEXT",
             "expression": "TEXT",
         },
-        "parameters": {
-            "specific_catalog": "TEXT",
-            "specific_schema": "TEXT",
-            "specific_name": "TEXT",
-            "ordinal_position": "INT",
-            "parameter_mode": "TEXT",
-            "parameter_name": "TEXT",
-            "data_type": "TEXT",
-            "character_maximum_length": "INT",
-            "character_octet_length": "INT",
-            "numeric_precision": "INT",
-            "numeric_scale": "INT",
-            "datetime_precision": "INT",
-            "character_set_name": "TEXT",
-            "collation_name": "TEXT",
-            "dtd_identifier": "TEXT",
-            "routine_type": "TEXT",
+        "tables": {
+            "table_catalog": "TEXT",
+            "table_schema": "TEXT",
+            "table_name": "TEXT",
+            "table_type": "TEXT",
+            "engine": "TEXT",
+            "version": "TEXT",
+            "row_format": "TEXT",
+            "table_rows": "INT",
+            "avg_row_length": "INT",
+            "data_length": "INT",
+            "max_data_length": "INT",
+            "index_length": "INT",
+            "data_free": "INT",
+            "auto_increment": "INT",
+            "create_time": "TEXT",
+            "update_time": "TEXT",
+            "check_time": "TEXT",
+            "table_collation": "TEXT",
+            "checksum": "TEXT",
+            "create_options": "TEXT",
+            "table_comment": "TEXT",
         },
-    }
+        "table_constraints": {
+            "constraint_name": "TEXT",
+            "constraint_catalog": "TEXT",
+            "constraint_schema": "TEXT",
+            "table_schema": "TEXT",
+            "table_name": "TEXT",
+            "constraint_type": "TEXT",
+            "enforced": "TEXT",
+        },
+        "table_privileges": {
+            "grantee": "TEXT",
+            "table_catalog": "TEXT",
+            "table_schema": "TEXT",
+            "table_name": "TEXT",
+            "privilege_type": "TEXT",
+            "is_grantable": "TEXT",
+        },
+        "triggers": {
+            "trigger_catalog": "TEXT",
+            "trigger_schema": "TEXT",
+            "trigger_name": "TEXT",
+            "event_manipulation": "TEXT",
+            "event_object_catalog": "TEXT",
+            "event_object_schema": "TEXT",
+            "event_object_table": "TEXT",
+            "action_order": "INT",
+            "action_condition": "TEXT",
+            "action_statement": "TEXT",
+            "action_orientation": "TEXT",
+            "action_timing": "TEXT",
+            "action_reference_old_table": "TEXT",
+            "action_reference_new_table": "TEXT",
+            "action_reference_old_row": "TEXT",
+            "action_reference_new_row": "TEXT",
+            "created": "TEXT",
+            "sql_mode": "TEXT",
+            "definer": "TEXT",
+            "character_set_client": "TEXT",
+            "collation_connection": "TEXT",
+            "database_collation": "TEXT",
+        },
+        "user_privileges": {
+            "grantee": "TEXT",
+            "table_catalog": "TEXT",
+            "privilege_type": "TEXT",
+            "is_grantable": "TEXT",
+        },
+        "views": {
+            "table_catalog": "TEXT",
+            "table_schema": "TEXT",
+            "table_name": "TEXT",
+            "view_definition": "TEXT",
+            "check_option": "TEXT",
+            "is_updatable": "TEXT",
+            "definer": "TEXT",
+            "security_type": "TEXT",
+            "character_set_client": "TEXT",
+            "collation_connection": "TEXT",
+        },
+    },
+    "mysql": {
+        "procs_priv": {
+            "host": "TEXT",
+            "db": "TEXT",
+            "user": "TEXT",
+            "routine_name": "TEXT",
+            "routine_type": "TEXT",
+            "proc_priv": "TEXT",
+            "timestamp": "TEXT",
+            "grantor": "TEXT",
+        },
+        "role_edges": {
+            "from_host": "TEXT",
+            "from_user": "TEXT",
+            "to_host": "TEXT",
+            "to_user": "TEXT",
+            "with_admin_option": "TEXT",
+        },
+        "user": {
+            "host": "TEXT",
+            "user": "TEXT",
+            "select_priv": "TEXT",
+            "insert_priv": "TEXT",
+            "update_priv": "TEXT",
+            "delete_priv": "TEXT",
+            "index_priv": "TEXT",
+            "alter_priv": "TEXT",
+            "create_priv": "TEXT",
+            "drop_priv": "TEXT",
+            "grant_priv": "TEXT",
+            "create_view_priv": "TEXT",
+            "show_view_priv": "TEXT",
+            "create_routine_priv": "TEXT",
+            "alter_routine_priv": "TEXT",
+            "execute_priv": "TEXT",
+            "trigger_priv": "TEXT",
+            "event_priv": "TEXT",
+            "create_tmp_table_priv": "TEXT",
+            "lock_tables_priv": "TEXT",
+            "references_priv": "TEXT",
+            "reload_priv": "TEXT",
+            "shutdown_priv": "TEXT",
+            "process_priv": "TEXT",
+            "file_priv": "TEXT",
+            "show_db_priv": "TEXT",
+            "super_priv": "TEXT",
+            "repl_slave_priv": "TEXT",
+            "repl_client_priv": "TEXT",
+            "create_user_priv": "TEXT",
+            "create_tablespace_priv": "TEXT",
+            "create_role_priv": "TEXT",
+            "drop_role_priv": "TEXT",
+            "ssl_type": "TEXT",
+            "ssl_cipher": "TEXT",
+            "x509_issuer": "TEXT",
+            "x509_subject": "TEXT",
+            "plugin": "TEXT",
+            "authentication_string": "TEXT",
+            "password_expired": "TEXT",
+            "password_last_changed": "TEXT",
+            "password_lifetime": "TEXT",
+            "account_locked": "TEXT",
+            "password_reuse_history": "TEXT",
+            "password_reuse_time": "TEXT",
+            "password_require_current": "TEXT",
+            "user_attributes": "TEXT",
+            "max_questions": "INT",
+            "max_updates": "INT",
+            "max_connections": "INT",
+            "max_user_connections": "INT",
+        },
+    },
 }
 
 
@@ -201,10 +442,8 @@ def info_schema_tables(columns: Iterable[Column]) -> Dict[str, Dict[str, Table]]
     ordinal_positions: dict[Any, int] = defaultdict(lambda: 0)
 
     data = {
-        "information_schema": {
-            k: Table(tuple(v.keys()))
-            for k, v in INFO_SCHEMA["information_schema"].items()
-        }
+        db: {k: Table(tuple(v.keys())) for k, v in tables.items()}
+        for db, tables in INFO_SCHEMA.items()
     }
 
     tables = set()
@@ -253,9 +492,7 @@ def info_schema_tables(columns: Iterable[Column]) -> Dict[str, Dict[str, Table]]
                 catalog,  # table_catalog
                 db,  # table_schema
                 table,  # table_name
-                "SYSTEM TABLE"
-                if db == "information_schema"
-                else "BASE TABLE",  # table_type
+                "SYSTEM TABLE" if db in INFO_SCHEMA else "BASE TABLE",  # table_type
                 "MinervaSQL",  # engine
                 "1.0",  # version
                 None,  # row_format
@@ -409,6 +646,7 @@ class InfoSchema(BaseInfoSchema):
         self.tables = tables
 
     async def query(self, expression: exp.Expression) -> AllowedResult:
+        expression = self._preprocess(expression)
         result = execute(expression, schema=INFO_SCHEMA, tables=self.tables)
         return result.rows, result.columns
 
@@ -417,8 +655,22 @@ class InfoSchema(BaseInfoSchema):
         columns = mapping_to_columns(mapping)
         return cls(info_schema_tables(columns))
 
+    def _preprocess(self, expression: exp.Expression) -> exp.Expression:
+        return expression.transform(_remove_collate)
+
 
 def ensure_info_schema(schema: dict | BaseInfoSchema) -> BaseInfoSchema:
     if isinstance(schema, BaseInfoSchema):
         return schema
     return InfoSchema.from_mapping(schema)
+
+
+def _remove_collate(node: exp.Expression) -> exp.Expression:
+    """
+    SQLGlot's executor doesn't support collation specifiers.
+
+    Just remove them for now.
+    """
+    if isinstance(node, exp.Collate):
+        return node.left
+    return node
