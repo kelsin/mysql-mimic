@@ -28,7 +28,7 @@ TABLES = {
 class MySession(Session):
     async def query(self, expression, sql, attrs):
         expression = optimize(expression, schema=SCHEMA, db=self.database)
-        result = execute(expression.sql(), schema=SCHEMA, tables=TABLES)
+        result = execute(expression, schema=SCHEMA, tables=TABLES)
         return result.rows, result.columns
 
     async def schema(self):
