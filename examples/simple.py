@@ -1,7 +1,6 @@
 import logging
 import asyncio
 from sqlglot.executor import execute
-from sqlglot.optimizer import optimize
 
 from mysql_mimic import MysqlServer, Session
 
@@ -27,7 +26,6 @@ TABLES = {
 
 class MySession(Session):
     async def query(self, expression, sql, attrs):
-        expression = optimize(expression, schema=SCHEMA, db=self.database)
         result = execute(expression, schema=SCHEMA, tables=TABLES)
         return result.rows, result.columns
 
