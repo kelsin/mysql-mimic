@@ -4,12 +4,11 @@ import io
 from copy import copy
 from hashlib import sha1
 import logging
-import secrets
 from dataclasses import dataclass
 from typing import Optional, Dict, AsyncGenerator, Union, Tuple, Sequence
 
 from mysql_mimic.types import read_str_null
-from mysql_mimic.utils import xor
+from mysql_mimic import utils
 
 logger = logging.getLogger(__name__)
 
@@ -134,8 +133,8 @@ class NativePasswordAuthPlugin(AuthPlugin):
             # mysql_native_password can reuse the nonce from the initial handshake
             nonce = auth_info.handshake_auth_data.rstrip(b"\x00")
         else:
-            nonce = secrets.token_bytes(20)
-            # The mysql command line client expects a null terminating byte
+            nonce = utils.nonce(20)
+            # Some clients expect a null terminating byte
             auth_info = yield nonce + b"\x00"
 
         user = auth_info.user
@@ -165,7 +164,7 @@ class NativePasswordAuthPlugin(AuthPlugin):
         try:
             sha1_sha1_password = bytes.fromhex(auth_string or "")
             sha1_sha1_with_nonce = sha1(nonce + sha1_sha1_password).digest()
-            rcvd_sha1_password = xor(scramble, sha1_sha1_with_nonce)
+            rcvd_sha1_password = utils.xor(scramble, sha1_sha1_with_nonce)
             return sha1(rcvd_sha1_password).digest() == sha1_sha1_password
         except Exception:  # pylint: disable=broad-except
             logger.info("Invalid scramble")

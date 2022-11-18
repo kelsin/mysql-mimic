@@ -1,12 +1,10 @@
 import logging
 import asyncio
-from typing import Sequence, Optional, Dict
 
 from mysql_mimic import (
     MysqlServer,
     IdentityProvider,
     NativePasswordAuthPlugin,
-    AuthPlugin,
     User,
 )
 
@@ -14,16 +12,16 @@ logger = logging.getLogger(__name__)
 
 
 class CustomIdentityProvider(IdentityProvider):
-    def __init__(self, passwords: Dict[str, str]):
+    def __init__(self, passwords):
         # Storing passwords in plain text isn't safe.
         # This is done for demonstration purposes.
         # It's better to store the password hash, as returned by `NativePasswordAuthPlugin.create_auth_string`
         self.passwords = passwords
 
-    def get_plugins(self) -> Sequence[AuthPlugin]:
+    def get_plugins(self):
         return [NativePasswordAuthPlugin()]
 
-    async def get_user(self, username: str) -> Optional[User]:
+    async def get_user(self, username):
         password = self.passwords.get(username)
         if password:
             return User(
@@ -34,7 +32,7 @@ class CustomIdentityProvider(IdentityProvider):
         return None
 
 
-async def main() -> None:
+async def main():
     logging.basicConfig(level=logging.DEBUG)
     identity_provider = CustomIdentityProvider(passwords={"user": "password"})
     server = MysqlServer(identity_provider=identity_provider)
