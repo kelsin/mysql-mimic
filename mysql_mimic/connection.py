@@ -314,7 +314,7 @@ class Connection:
                     )
 
             except MysqlError as e:
-                logger.exception(e)
+                logger.error(e)
                 await self.stream.write(self.error(msg=e.msg, code=e.code))
             except Exception as e:  # pylint: disable=broad-except
                 logger.exception(e)
