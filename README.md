@@ -46,7 +46,8 @@ if __name__ == "__main__":
     asyncio.run(server.serve_forever())
 ```
 
-Using [sqlglot](https://github.com/tobymao/sqlglot) for SQL parsing, the abstract `Session` class handles queries to metadata, variables, etc. that many MySQL clients expect. 
+Using [sqlglot](https://github.com/tobymao/sqlglot), the abstract `Session` class handles queries to metadata, variables, etc. that many MySQL clients expect. 
+
 To bypass this default behavior, you can implement the [`mysql_mimic.session.BaseSession`](mysql_mimic/session.py) interface.
 
 See [examples](./examples) for more examples.
