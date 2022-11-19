@@ -32,7 +32,8 @@ jobs:
     - name: Type annotations
       run: |
         make types
-  integration:
+  mysql-connector-j:
+    name: Integration (mysql-connector-j)
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2

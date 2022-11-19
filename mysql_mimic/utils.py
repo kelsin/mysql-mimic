@@ -9,7 +9,7 @@ from sqlglot import expressions as exp
 from sqlglot.optimizer.scope import traverse_scope
 
 
-# JDBC client uses ASCII codex to decode nonce
+# MySQL Connector/J uses ASCII to decode nonce
 SAFE_NONCE_CHARS = (string.ascii_letters + string.digits).encode()
 
 
