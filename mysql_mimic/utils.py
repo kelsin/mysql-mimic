@@ -1,10 +1,16 @@
 from __future__ import annotations
 import sys
 from collections.abc import Iterator
+import random
 from typing import List, Any, Dict
+import string
 
 from sqlglot import expressions as exp
 from sqlglot.optimizer.scope import traverse_scope
+
+
+# MySQL Connector/J uses ASCII to decode nonce
+SAFE_NONCE_CHARS = (string.ascii_letters + string.digits).encode()
 
 
 class seq(Iterator):
@@ -32,6 +38,14 @@ def xor(a: bytes, b: bytes) -> bytes:
     int_a = int.from_bytes(a, sys.byteorder)
     int_enc = int_b ^ int_a
     return int_enc.to_bytes(len(b), sys.byteorder)
+
+
+def nonce(nbytes: int) -> bytes:
+    return bytes(
+        bytearray(
+            [random.SystemRandom().choice(SAFE_NONCE_CHARS) for _ in range(nbytes)]
+        )
+    )
 
 
 def find_tables(expression: exp.Expression) -> List[exp.Table]:

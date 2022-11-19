@@ -32,3 +32,27 @@ jobs:
     - name: Type annotations
       run: |
         make types
+  mysql-connector-j:
+    name: Integration (mysql-connector-j)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.10'
+        cache: pip
+        cache-dependency-path: setup.py
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        make deps
+    - name: Set up Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        cache: 'maven'
+    - name: Test mysql-connector-j
+      run: |
+        python integration/run.py integration/mysql-connector-j/

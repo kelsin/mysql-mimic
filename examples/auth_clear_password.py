@@ -1,11 +1,9 @@
 import logging
 import asyncio
-from typing import Sequence, Optional
 
 from mysql_mimic import (
     MysqlServer,
     IdentityProvider,
-    AuthPlugin,
     User,
 )
 from mysql_mimic.auth import AbstractClearPasswordAuthPlugin
@@ -24,21 +22,21 @@ USERS = {
 class CustomAuthPlugin(AbstractClearPasswordAuthPlugin):
     name = "custom_plugin"
 
-    async def check(self, username: str, password: str) -> Optional[str]:
+    async def check(self, username, password):
         return username if USERS.get(username) == password else None
 
 
 class CustomIdentityProvider(IdentityProvider):
-    def get_plugins(self) -> Sequence[AuthPlugin]:
+    def get_plugins(self):
         return [CustomAuthPlugin()]
 
-    async def get_user(self, username: str) -> Optional[User]:
+    async def get_user(self, username):
         # Because we're storing users/passwords in an external system (the USERS dictionary, in this case),
         # we just assume all users exist.
         return User(name=username, auth_plugin=CustomAuthPlugin.name)
 
 
-async def main() -> None:
+async def main():
     logging.basicConfig(level=logging.INFO)
     identity_provider = CustomIdentityProvider()
     server = MysqlServer(identity_provider=identity_provider)
