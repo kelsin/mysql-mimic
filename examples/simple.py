@@ -34,7 +34,7 @@ class MySession(Session):
 
 
 async def main():
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     server = MysqlServer(session_factory=MySession)
     await server.serve_forever()
 
