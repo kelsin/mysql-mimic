@@ -27,8 +27,8 @@ from mysql_mimic.schema import (
     like_to_regex,
     BaseInfoSchema,
     ensure_info_schema,
-    INFO_SCHEMA,
 )
+from mysql_mimic.constants import INFO_SCHEMA
 from mysql_mimic.utils import find_dbs, lower_case_identifiers
 from mysql_mimic.variables import Variables, SessionVariables, GlobalVariables, DEFAULT
 from mysql_mimic.results import AllowedResult
