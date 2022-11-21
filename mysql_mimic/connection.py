@@ -21,7 +21,7 @@ from mysql_mimic.packets import (
 )
 from mysql_mimic.prepared import PreparedStatement, REGEX_PARAM
 from mysql_mimic.results import ensure_result_set, ResultSet
-from mysql_mimic import types, packets
+from mysql_mimic import types, packets, context
 from mysql_mimic.schema import com_field_list_to_show_statement
 from mysql_mimic.session import BaseSession
 from mysql_mimic.stream import MysqlStream, ConnectionClosed
@@ -77,19 +77,8 @@ class Connection:
     def client_charset(self) -> CharacterSet:
         return CharacterSet[self.session.variables.get("character_set_client")]
 
-    @property
-    def database(self) -> Optional[str]:
-        return self.session.database
-
-    @property
-    def username(self) -> Optional[str]:
-        return self.session.username
-
-    @username.setter
-    def username(self, username: str) -> None:
-        self.session.username = username
-
     async def start(self) -> None:
+        context.connection_id.set(self.connection_id)
         logger.info("Started new connection: %s", self.connection_id)
         try:
             await self.connection_phase()
