@@ -37,7 +37,7 @@ class CustomIdentityProvider(IdentityProvider):
 
 
 async def main():
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     identity_provider = CustomIdentityProvider()
     server = MysqlServer(identity_provider=identity_provider)
     await server.serve_forever()
