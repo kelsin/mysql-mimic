@@ -11,7 +11,7 @@ from mysql.connector import MySQLConnection
 from sqlalchemy import text
 import aiomysql
 
-from mysql_mimic import ResultColumn, ResultSet, MysqlServer
+from mysql_mimic import ResultColumn, ResultSet, MysqlServer, context
 from mysql_mimic.charset import CharacterSet
 from mysql_mimic.results import AllowedResult
 from mysql_mimic.constants import INFO_SCHEMA
@@ -225,18 +225,21 @@ async def test_init(port: int, session: MockSession, server: MysqlServer) -> Non
     ):
         connection = session.connection
         assert connection is not None
-        assert connection.username == "levon_helm"
+        assert connection.session.username == "levon_helm"
         assert connection.client_connect_attrs["program_name"] == "test"
-        assert connection.database == "db"
-        connection.username = "robbie_robertson"
-        assert connection.username == "robbie_robertson"
+        assert connection.session.database == "db"
 
 
 @pytest.mark.asyncio
-async def test_connection_id(port: int, server: MysqlServer) -> None:
+async def test_connection_id(
+    port: int, session: MockSession, server: MysqlServer
+) -> None:
     async with aiomysql.connect(port=port) as conn1:
         async with aiomysql.connect(port=port) as conn2:
             assert conn1.server_thread_id[0] + 1 == conn2.server_thread_id[0]
+
+    assert session.ctx is not None
+    assert session.ctx.get(context.connection_id) is not None
 
 
 @pytest.mark.asyncio

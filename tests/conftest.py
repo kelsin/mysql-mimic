@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio
 import functools
+from contextvars import Context, copy_context
 from ssl import SSLContext
 from typing import (
     Optional,
@@ -35,6 +36,7 @@ from mysql_mimic.auth import (
     AuthPlugin,
     IdentityProvider,
 )
+from mysql_mimic.connection import Connection
 from mysql_mimic.results import AllowedResult
 from mysql_mimic.schema import InfoSchema
 
@@ -52,10 +54,15 @@ class PreparedDictCursor(MySQLCursorPrepared):
 class MockSession(Session):
     def __init__(self) -> None:
         super().__init__()
+        self.ctx: Context | None = None
         self.return_value: Any = None
         self.echo = False
         self.last_query_attrs: Optional[Dict[str, str]] = None
         self.users: Optional[Dict[str, User]] = None
+
+    async def init(self, connection: Connection) -> None:
+        await super().init(connection)
+        self.ctx = copy_context()
 
     async def query(
         self, expression: exp.Expression, sql: str, attrs: Dict[str, str]
