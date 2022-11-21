@@ -14,7 +14,7 @@ import aiomysql
 from mysql_mimic import ResultColumn, ResultSet, MysqlServer
 from mysql_mimic.charset import CharacterSet
 from mysql_mimic.results import AllowedResult
-from mysql_mimic.schema import INFO_SCHEMA
+from mysql_mimic.constants import INFO_SCHEMA
 from mysql_mimic.types import ColumnType
 from tests.conftest import PreparedDictCursor, query, MockSession, ConnectFixture
 from tests.fixtures import queries
