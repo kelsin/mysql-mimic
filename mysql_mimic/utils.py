@@ -2,7 +2,7 @@ from __future__ import annotations
 import sys
 from collections.abc import Iterator
 import random
-from typing import List, Any, Dict
+from typing import List
 import string
 
 from sqlglot import expressions as exp
@@ -65,18 +65,7 @@ def find_dbs(expression: exp.Expression) -> List[str]:
     return [table.text("db") for table in find_tables(expression)]
 
 
-def lower_case_identifiers(expression: exp.Expression) -> None:
-    """Ensure all identifiers in `expression` are lower case, in-place"""
-    expression.transform(_lower_case_identifiers, copy=False)
-
-
-def _lower_case_identifiers(node: exp.Expression, *_: Any) -> exp.Expression:
-    if isinstance(node, exp.Identifier):
-        node.set("this", node.text("this").lower())
-    return node
-
-
-def dict_depth(d: Dict) -> int:
+def dict_depth(d: dict) -> int:
     """
     Get the nesting depth of a dictionary.
     For example:
