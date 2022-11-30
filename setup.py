@@ -13,7 +13,7 @@ setup(
     author="Christopher Giroir",
     author_email="kelsin@valefor.com",
     license="MIT",
-    packages=find_packages(),
+    packages=find_packages(include=["mysql_mimic", "mysql_mimic.*"]),
     python_requires=">=3.6",
     install_requires=["sqlglot>=10.0.3"],
     extras_require={
