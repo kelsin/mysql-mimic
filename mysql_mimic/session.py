@@ -29,7 +29,7 @@ from mysql_mimic.schema import (
     ensure_info_schema,
 )
 from mysql_mimic.constants import INFO_SCHEMA
-from mysql_mimic.utils import find_dbs, lower_case_identifiers
+from mysql_mimic.utils import find_dbs
 from mysql_mimic.variables import Variables, SessionVariables, GlobalVariables, DEFAULT
 from mysql_mimic.results import AllowedResult
 
@@ -118,7 +118,6 @@ class Session(BaseSession):
             self._use_interceptor,
             self._show_interceptor,
             self._rollback_interceptor,
-            self._lower_case_identifiers_interceptor,
             self._info_schema_interceptor,
         ]
 
@@ -224,12 +223,6 @@ class Session(BaseSession):
             result = await interceptor(expression)
             if result is not None:
                 return result
-        return None
-
-    async def _lower_case_identifiers_interceptor(
-        self, expression: exp.Expression
-    ) -> None:
-        lower_case_identifiers(expression)
         return None
 
     async def _use_interceptor(self, expression: exp.Expression) -> AllowedResult:
@@ -346,7 +339,7 @@ class Session(BaseSession):
         """Intercept queries to INFORMATION_SCHEMA tables"""
         dbs = find_dbs(expression)
         if (self.database and self.database.lower() in INFO_SCHEMA) or (
-            dbs and all(db in INFO_SCHEMA for db in dbs)
+            dbs and all(db.lower() in INFO_SCHEMA for db in dbs)
         ):
             return await self._query_info_schema(expression)
         return None
