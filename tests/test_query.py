@@ -605,9 +605,7 @@ async def test_query_attributes(
         ),
         (
             "SELECT CATALOG_NAME AS CatalogName FROM INFORMATION_SCHEMA.SCHEMATA LIMIT 1",
-            [
-                {"CatalogName": "def"}
-            ],
+            [{"CatalogName": "def"}],
         ),
         # SHOW
         (
