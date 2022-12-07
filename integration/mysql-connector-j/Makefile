@@ -1,4 +1,4 @@
 .PHONY: test
 
 test:
-	mvn test
+	mvn -X test
