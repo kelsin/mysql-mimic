@@ -23,6 +23,8 @@ setup(
             "mysql-connector-python",
             "black",
             "coverage",
+            "gssapi",
+            "k5test",
             "pylint",
             "pytest",
             "pytest-asyncio",
@@ -31,6 +33,7 @@ setup(
             "twine",
             "wheel",
         ],
+        "krb5": ["gssapi"],
     },
     classifiers=[
         "Development Status :: 3 - Alpha",

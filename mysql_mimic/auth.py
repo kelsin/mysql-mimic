@@ -175,6 +175,53 @@ class NativePasswordAuthPlugin(AuthPlugin):
         return sha1(sha1(password.encode("utf-8")).digest()).hexdigest()
 
 
+class KerberosAuthPlugin(AuthPlugin):
+    """
+    This plugin implements the Generic Security Service Application Program Interface (GSS-API) by way of the Kerberos
+    mechanism as described in RFC1964(https://www.rfc-editor.org/rfc/rfc1964.html).
+    """
+
+    name = "authentication_kerberos"
+    client_plugin_name = "authentication_kerberos_client"
+
+    def __init__(self, service: str, realm: str) -> None:
+        self.service = service
+        self.realm = realm
+
+    async def auth(self, auth_info: Optional[AuthInfo] = None) -> AuthState:
+        import gssapi
+
+        # Fast authentication not supported
+        if not auth_info:
+            yield b""
+
+        auth_info = (
+            yield len(self.service).to_bytes(2, "little")
+            + self.service.encode("utf-8")
+            + len(self.realm).to_bytes(2, "little")
+            + self.realm.encode("utf-8")
+        )
+
+        server_creds = gssapi.Credentials(
+            usage="accept", name=gssapi.Name(f"{self.service}@{self.realm}")
+        )
+        server_ctx = gssapi.SecurityContext(usage="accept", creds=server_creds)
+
+        client_name = gssapi.Name(f"{auth_info.username}@{self.realm}").canonicalize(
+            gssapi.MechType.kerberos
+        )
+        client_token = auth_info.data
+
+        server_token = server_ctx.step(client_token)
+
+        if server_ctx.initiator_name == client_name:
+            if gssapi.RequirementFlag.mutual_authentication in server_ctx.actual_flags:
+                auth_info = yield server_token
+            yield Success(auth_info.username)
+        else:
+            yield Forbidden()
+
+
 class NoLoginAuthPlugin(AuthPlugin):
     """
     Standard plugin that prevents all clients from direct login.

@@ -46,7 +46,7 @@ if __name__ == "__main__":
     asyncio.run(server.serve_forever())
 ```
 
-Using [sqlglot](https://github.com/tobymao/sqlglot), the abstract `Session` class handles queries to metadata, variables, etc. that many MySQL clients expect. 
+Using [sqlglot](https://github.com/tobymao/sqlglot), the abstract `Session` class handles queries to metadata, variables, etc. that many MySQL clients expect.
 
 To bypass this default behavior, you can implement the [`mysql_mimic.session.BaseSession`](mysql_mimic/session.py) interface.
 
@@ -63,7 +63,10 @@ MySQL-mimic has built in support for several standard MySQL authentication plugi
   - This is typically used as the client plugin for a custom server plugin. As such, MySQL-mimic provides an abstract class, [`mysql_mimic.auth.AbstractClearPasswordAuthPlugin`](mysql_mimic/auth.py), which can be extended.
   - [example](examples/auth_clear_password.py)
 - [mysql_no_login](https://dev.mysql.com/doc/refman/8.0/en/no-login-pluggable-authentication.html)
-  - The server prevents clients from directly authenticating as an account. See the documentation for relevant use cases. 
+  - The server prevents clients from directly authenticating as an account. See the documentation for relevant use cases.
+- [authentication_kerberos](https://dev.mysql.com/doc/mysql-security-excerpt/8.0/en/kerberos-pluggable-authentication.html)
+  - Kerberos uses tickets together with symmetric-key cryptography, enabling authentication without sending passwords over the network. Kerberos authentication supports userless and passwordless scenarios.
+
 
 By default, a session naively accepts whatever username the client provides.
 
@@ -73,15 +76,15 @@ Custom plugins can be created by extending [`mysql_mimic.auth.AuthPlugin`](mysql
 
 ## Development
 
-You can install dependencies with `make deps`. 
+You can install dependencies with `make deps`.
 
-You can format your code with `make format`. 
+You can format your code with `make format`.
 
-You can lint with `make lint`. 
+You can lint with `make lint`.
 
 You can check type annotations with `make types`.
 
-You can run tests with `make test`. This will build a coverage report in `./htmlcov/index.html`. 
+You can run tests with `make test`. This will build a coverage report in `./htmlcov/index.html`.
 
 You can run all the checks with `make check`.
 
