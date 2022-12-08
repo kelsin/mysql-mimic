@@ -75,9 +75,9 @@ public class IntegrationTest
 
         Class.forName("com.mysql.cj.jdbc.Driver").newInstance();
 
-        String user = "incorrect_user"
+        String user = "incorrect_user";
         String port = System.getenv("PORT");
-        String url = String.format(f"jdbc:mysql://%s@127.0.0.1:%s/?defaultAuthenticationPlugin=authentication_kerberos_client", user, port);
+        String url = String.format("jdbc:mysql://%s@127.0.0.1:%s/?defaultAuthenticationPlugin=authentication_kerberos_client", user, port);
 
         Connection conn = DriverManager.getConnection(url);
 

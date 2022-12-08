@@ -1,8 +1,4 @@
-import os
-import shellutil
 from setuptools import setup, find_packages
-
-os.environ["GSSAPI_SUPPORT_DETECT"] = bool(shellutil.which("kinit"))
 
 # Import __version__
 exec(open("mysql_mimic/version.py").read())
