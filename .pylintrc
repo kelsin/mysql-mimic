@@ -1,6 +1,7 @@
 [MESSAGES CONTROL]
 
 disable=
+    import-outside-toplevel,
     invalid-name,
     missing-class-docstring,
     missing-function-docstring,

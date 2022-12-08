@@ -189,7 +189,7 @@ class KerberosAuthPlugin(AuthPlugin):
         self.realm = realm
 
     async def auth(self, auth_info: Optional[AuthInfo] = None) -> AuthState:
-        import gssapi  # pylint: disable=import-outside-toplevel
+        import gssapi
 
         # Fast authentication not supported
         if not auth_info:

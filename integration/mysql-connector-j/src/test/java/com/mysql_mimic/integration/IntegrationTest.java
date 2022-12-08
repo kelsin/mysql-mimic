@@ -39,7 +39,7 @@ public class IntegrationTest
     }
 
     @Test
-    public void test__krb5() throws Exception {
+    public void testKrb5() throws Exception {
         // System.setProperty("sun.security.krb5.debug", "True");
         // System.setProperty("sun.security.jgss.debug", "True");
         System.setProperty("java.security.krb5.conf", System.getenv("KRB5_CONFIG"));
@@ -69,7 +69,7 @@ public class IntegrationTest
     }
 
     @Test(expected = SQLException.class)
-    public void test__krb5_incorrect_user() throws Exception {
+    public void testKrb5IncorrectUser() throws Exception {
         System.setProperty("java.security.krb5.conf", System.getenv("KRB5_CONFIG"));
         System.setProperty("java.security.auth.login.config", System.getenv("JAAS_CONFIG"));
 
