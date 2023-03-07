@@ -208,21 +208,21 @@ def show_statement_to_info_schema_query(show: exp.Show) -> exp.Select:
             select = select.where(f"schema_name LIKE '{like}'")
     elif kind == "INDEX":
         outputs = [
-            "table_name AS Table",
-            "non_unique AS Non_unique",
-            "index_name AS Key_name",
-            "seq_in_index AS Seq_in_index",
-            "column_name AS Column_name",
-            "collation AS Collation",
-            "cardinality AS Cardinality",
-            "sub_part AS Sub_part",
-            "packed AS Packed",
-            "nullable AS Null",
-            "index_type AS Index_type",
-            "comment AS Comment",
-            "index_comment AS Index_comment",
-            "is_visible AS Visible",
-            "expression AS Expression",
+            '"table_name" AS Table',
+            '"non_unique" AS Non_unique',
+            '"index_name" AS Key_name',
+            '"seq_in_index" AS Seq_in_index',
+            '"column_name" AS Column_name',
+            '"collation" AS Collation',
+            '"cardinality" AS Cardinality',
+            '"sub_part" AS Sub_part',
+            '"packed" AS Packed',
+            '"nullable" AS Null',
+            '"index_type" AS Index_type',
+            '"comment" AS Comment',
+            '"index_comment" AS Index_comment',
+            '"is_visible" AS Visible',
+            '"expression" AS Expression',
         ]
         table = show.text("target")
         select = (

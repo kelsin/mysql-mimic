@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from contextlib import contextmanager
 from typing import (
     Dict,
     TYPE_CHECKING,
@@ -7,6 +9,7 @@ from typing import (
     Awaitable,
     Type,
     Any,
+    Iterator,
 )
 
 from sqlglot import Dialect
@@ -204,9 +207,12 @@ class Session(BaseSession):
     async def handle_query(self, sql: str, attrs: Dict[str, str]) -> AllowedResult:
         result = None
         for expression in self.dialect().parse(sql):
-            result = await self._intercept(expression, sql, attrs)
-            if result is None:
-                result = await self.query(expression, sql, attrs)
+            if not expression:
+                continue
+            with self._set_var_hint(expression):
+                result = await self._intercept(expression, sql, attrs)
+                if result is None:
+                    result = await self.query(expression, sql, attrs)
         return result
 
     async def use(self, database: str) -> None:
@@ -214,6 +220,29 @@ class Session(BaseSession):
 
     async def _query_info_schema(self, expression: exp.Expression) -> AllowedResult:
         return await ensure_info_schema(await self.schema()).query(expression)
+
+    @contextmanager
+    def _set_var_hint(self, expression: exp.Expression) -> Iterator[None]:
+        """Handles any SET_VAR hints, which set system variables for a single statement"""
+        hint = expression.args.get("hint")
+        if not hint:
+            yield
+            return
+
+        assignments = {}
+        for e in hint.expressions:
+            if isinstance(e, exp.Func) and e.name == "SET_VAR":
+                eq = e.expressions[0]
+                assignments[eq.left.name] = expression_to_value(eq.right)
+
+        orig = {k: self.variables.get(k) for k in assignments}
+        try:
+            for k, v in assignments.items():
+                self.variables.set(k, v)
+            yield
+        finally:
+            for k, v in orig.items():
+                self.variables.set(k, v)
 
     async def _intercept(
         self, expression: exp.Expression, sql: str, attrs: Dict[str, str]
@@ -301,7 +330,7 @@ class Session(BaseSession):
         """
         if isinstance(expression, exp.Select) and not any(
             expression.args.get(a)
-            for a in set(exp.Select.arg_types) - {"expressions", "limit"}
+            for a in set(exp.Select.arg_types) - {"expressions", "limit", "hint"}
         ):
             result = execute(expression)
             return result.rows, result.columns
@@ -372,6 +401,8 @@ class Session(BaseSession):
             )
 
     def _set_charset(self, item: exp.SetItem) -> None:
+        charset_name: Any
+        charset_conn: Any
         if item.name == "DEFAULT":
             charset_name = DEFAULT
             charset_conn = DEFAULT

@@ -35,6 +35,7 @@ SYSTEM_VARIABLES: dict[str, VariableSchema] = {
     "license": (str, "MIT", False),
     "lower_case_table_names": (int, 0, True),
     "max_allowed_packet": (int, 67108864, True),
+    "max_execution_time": (int, 0, True),
     "net_write_timeout": (int, 28800, True),
     "performance_schema": (bool, False, False),
     "sql_auto_is_null": (bool, False, True),
