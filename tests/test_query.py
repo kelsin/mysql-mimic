@@ -68,7 +68,7 @@ async def query_fixture(
 
         return q4
 
-    raise Exception("Unexpected fixture param")
+    raise RuntimeError("Unexpected fixture param")
 
 
 # # Uncomment to make tests only use mysql-connector, which can help during debugging
