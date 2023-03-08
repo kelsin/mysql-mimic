@@ -19,7 +19,7 @@ from tests.conftest import query, to_thread, MockSession, ConnectFixture
 # That's silly, since SSL termination doesn't have to be handled by MySQL.
 # But it's extra silly in tests.
 MySQLClearPasswordAuthPlugin.requires_ssl = False
-MySQLConnectionAbstract.is_secure = True  # pylint: disable=protected-access
+MySQLConnectionAbstract.is_secure = True  # type: ignore
 
 SIMPLE_AUTH_USER = "levon_helm"
 

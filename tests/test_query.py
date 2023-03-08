@@ -6,9 +6,9 @@ from typing import Any, Callable, Awaitable, Sequence, Dict, List, Tuple
 
 import pytest
 import pytest_asyncio
-import sqlalchemy.engine
-from mysql.connector import MySQLConnection
+from mysql.connector.abstracts import MySQLConnectionAbstract
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine
 import aiomysql
 
 from mysql_mimic import ResultColumn, ResultSet, MysqlServer, context
@@ -26,10 +26,10 @@ QueryFixture = Callable[[str], Awaitable[Sequence[Dict[str, Any]]]]
     params=["mysql.connector", "mysql.connector(prepared)", "aiomysql", "sqlalchemy"]
 )
 async def query_fixture(
-    mysql_connector_conn: MySQLConnection,
+    mysql_connector_conn: MySQLConnectionAbstract,
     aiomysql_conn: aiomysql.Connection,
     session: MockSession,
-    sqlalchemy_engine: sqlalchemy.engine.Engine,
+    sqlalchemy_engine: AsyncEngine,
     request: Any,
 ) -> QueryFixture:
     if request.param == "mysql.connector":
@@ -63,7 +63,7 @@ async def query_fixture(
             async with sqlalchemy_engine.connect() as conn:
                 cursor = await conn.execute(text(sql))
                 if cursor.returns_rows:
-                    return cursor.mappings().all()
+                    return cursor.mappings().all()  # type: ignore
                 return []
 
         return q4
@@ -203,7 +203,7 @@ async def test_query(
 async def test_prepared_stmt(
     session: MockSession,
     server: MysqlServer,
-    mysql_connector_conn: MySQLConnection,
+    mysql_connector_conn: MySQLConnectionAbstract,
     sql: str,
     params: Tuple[Any],
     expected: str,
@@ -267,7 +267,9 @@ async def test_replace_function(
 
 @pytest.mark.asyncio
 async def test_query_attributes(
-    session: MockSession, server: MysqlServer, mysql_connector_conn: MySQLConnection
+    session: MockSession,
+    server: MysqlServer,
+    mysql_connector_conn: MySQLConnectionAbstract,
 ) -> None:
     session.echo = True
 
