@@ -17,16 +17,15 @@ from typing import (
 )
 
 import aiomysql
-import sqlalchemy.engine
 import mysql.connector
+from mysql.connector.abstracts import MySQLConnectionAbstract
 from mysql.connector.connection import (
     MySQLCursorPrepared,
     MySQLCursorDict,
-    MySQLConnection,
 )
 from mysql.connector.cursor import MySQLCursor
 from sqlglot import expressions as exp
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 import pytest
 import pytest_asyncio
 
@@ -42,7 +41,7 @@ from mysql_mimic.schema import InfoSchema
 
 
 class PreparedDictCursor(MySQLCursorPrepared):
-    def fetchall(self) -> Optional[List[Dict[str, Any]]]:
+    def fetchall(self) -> Any:
         rows = super().fetchall()
 
         if rows is not None:
@@ -171,21 +170,23 @@ def port(server: MysqlServer) -> int:
     return server.sockets()[0].getsockname()[1]
 
 
-ConnectFixture = Callable[..., Awaitable[MySQLConnection]]
+ConnectFixture = Callable[..., Awaitable[MySQLConnectionAbstract]]
 
 
 @pytest.fixture
 def connect(port: int) -> ConnectFixture:
-    async def conn(**kwargs: Any) -> MySQLConnection:
+    async def conn(**kwargs: Any) -> MySQLConnectionAbstract:
         return await to_thread(
-            mysql.connector.connect, use_pure=True, port=port, **kwargs
+            mysql.connector.connect, use_pure=True, port=port, **kwargs  # type: ignore
         )
 
     return conn
 
 
 @pytest_asyncio.fixture
-async def mysql_connector_conn(connect: ConnectFixture) -> MySQLConnection:
+async def mysql_connector_conn(
+    connect: ConnectFixture,
+) -> AsyncGenerator[MySQLConnectionAbstract, None]:
     conn = await connect(user="levon_helm")
     try:
         yield conn
@@ -200,7 +201,9 @@ async def aiomysql_conn(port: int) -> aiomysql.Connection:
 
 
 @pytest_asyncio.fixture
-async def sqlalchemy_engine(port: int) -> sqlalchemy.engine.Engine:
+async def sqlalchemy_engine(
+    port: int,
+) -> AsyncGenerator[AsyncEngine, None]:
     engine = create_async_engine(url=f"mysql+aiomysql://levon_helm@127.0.0.1:{port}")
     try:
         yield engine
@@ -209,7 +212,7 @@ async def sqlalchemy_engine(port: int) -> sqlalchemy.engine.Engine:
 
 
 async def query(
-    conn: MySQLConnection,
+    conn: MySQLConnectionAbstract,
     sql: str,
     cursor_class: Type[MySQLCursor] = MySQLCursorDict,
     params: Sequence[Any] | None = None,

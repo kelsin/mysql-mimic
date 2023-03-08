@@ -32,7 +32,6 @@ async def test_ssl(
     connect: ConnectFixture,
     port: int,
 ) -> None:
-
     with closing(await connect()) as conn:
         results = await query(conn, "SELECT 1 AS a")
         assert results == [{"a": 1}]

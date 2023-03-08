@@ -6,9 +6,9 @@ from typing import Any, Callable, Awaitable, Sequence, Dict, List, Tuple
 
 import pytest
 import pytest_asyncio
-import sqlalchemy.engine
-from mysql.connector import MySQLConnection
+from mysql.connector.abstracts import MySQLConnectionAbstract
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine
 import aiomysql
 
 from mysql_mimic import ResultColumn, ResultSet, MysqlServer, context
@@ -26,10 +26,10 @@ QueryFixture = Callable[[str], Awaitable[Sequence[Dict[str, Any]]]]
     params=["mysql.connector", "mysql.connector(prepared)", "aiomysql", "sqlalchemy"]
 )
 async def query_fixture(
-    mysql_connector_conn: MySQLConnection,
+    mysql_connector_conn: MySQLConnectionAbstract,
     aiomysql_conn: aiomysql.Connection,
     session: MockSession,
-    sqlalchemy_engine: sqlalchemy.engine.Engine,
+    sqlalchemy_engine: AsyncEngine,
     request: Any,
 ) -> QueryFixture:
     if request.param == "mysql.connector":
@@ -63,12 +63,12 @@ async def query_fixture(
             async with sqlalchemy_engine.connect() as conn:
                 cursor = await conn.execute(text(sql))
                 if cursor.returns_rows:
-                    return cursor.mappings().all()
+                    return cursor.mappings().all()  # type: ignore
                 return []
 
         return q4
 
-    raise Exception("Unexpected fixture param")
+    raise RuntimeError("Unexpected fixture param")
 
 
 # # Uncomment to make tests only use mysql-connector, which can help during debugging
@@ -203,7 +203,7 @@ async def test_query(
 async def test_prepared_stmt(
     session: MockSession,
     server: MysqlServer,
-    mysql_connector_conn: MySQLConnection,
+    mysql_connector_conn: MySQLConnectionAbstract,
     sql: str,
     params: Tuple[Any],
     expected: str,
@@ -267,7 +267,9 @@ async def test_replace_function(
 
 @pytest.mark.asyncio
 async def test_query_attributes(
-    session: MockSession, server: MysqlServer, mysql_connector_conn: MySQLConnection
+    session: MockSession,
+    server: MysqlServer,
+    mysql_connector_conn: MySQLConnectionAbstract,
 ) -> None:
     session.echo = True
 
@@ -347,7 +349,16 @@ async def test_query_attributes(
             "SET autocommit = OFF, sql_mode = 'TRADITIONAL'; SELECT @@autocommit, @@sql_mode",
             [{"@@autocommit": False, "@@sql_mode": "TRADITIONAL"}],
         ),
-        ## SET names
+        # SET_VAR
+        (
+            "SELECT @@max_execution_time",
+            [{"@@max_execution_time": 0}],
+        ),
+        (
+            "SELECT /*+ SET_VAR(max_execution_time=1) */ @@max_execution_time",
+            [{"@@max_execution_time": 1}],
+        ),
+        # SET names
         (
             """
             SET NAMES utf8;
@@ -469,7 +480,7 @@ async def test_query_attributes(
             [{"x": 1}],
         ),
         # Simple queries
-        ("SELECT 1, 2", [{"_col_0": 1, "_col_1": 2}]),
+        ("SELECT 1, 2", [{"1": 1, "2": 2}]),
         ("SELECT '1' AS Hello", [{"Hello": "1"}]),
         # USE
         ("USE db2; SELECT DATABASE()", [{"DATABASE()": "db2"}]),
@@ -633,6 +644,7 @@ async def test_query_attributes(
                 {"Value": "MIT", "Variable_name": "license"},
                 {"Value": "0", "Variable_name": "lower_case_table_names"},
                 {"Value": "67108864", "Variable_name": "max_allowed_packet"},
+                {"Value": "0", "Variable_name": "max_execution_time"},
                 {"Value": "28800", "Variable_name": "net_write_timeout"},
                 {"Value": "False", "Variable_name": "performance_schema"},
                 {"Value": "False", "Variable_name": "sql_auto_is_null"},
