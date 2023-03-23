@@ -37,6 +37,7 @@ SYSTEM_VARIABLES: dict[str, VariableSchema] = {
     "max_allowed_packet": (int, 67108864, True),
     "max_execution_time": (int, 0, True),
     "net_write_timeout": (int, 28800, True),
+    "net_buffer_length": (int, 16384, True),
     "performance_schema": (bool, False, False),
     "sql_auto_is_null": (bool, False, True),
     "sql_mode": (str, "ANSI", True),
