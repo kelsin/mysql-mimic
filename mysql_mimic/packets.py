@@ -339,9 +339,9 @@ def make_column_count(capabilities: Capabilities, column_count: int) -> bytes:
 # pylint: disable=too-many-arguments
 def make_column_definition_41(
     server_charset: CharacterSet,
-    schema: Optional[str] = "db",
-    table: Optional[str] = "TABLE_NAMES",
-    org_table: Optional[str] = "TABLE_NAMES",
+    schema: Optional[str] = None,
+    table: Optional[str] = None,
+    org_table: Optional[str] = None,
     name: Optional[str] = None,
     org_name: Optional[str] = None,
     character_set: CharacterSet = CharacterSet.utf8mb4,
@@ -377,10 +377,7 @@ def make_column_definition_41(
             parts.append(uint_len(0))
         else:
             default_values = server_charset.encode(default)
-            parts.extend([
-                uint_len(len(default_values)),
-                str_len(default_values)
-            ])
+            parts.extend([uint_len(len(default_values)), str_len(default_values)])
     return _concat(*parts)
 
 

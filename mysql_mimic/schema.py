@@ -156,7 +156,9 @@ def info_schema_tables(columns: Iterable[Column]) -> Dict[str, Dict[str, Table]]
     return data
 
 
-def show_statement_to_info_schema_query(show: exp.Show, database: Optional[str] = None) -> exp.Select:
+def show_statement_to_info_schema_query(
+    show: exp.Show, database: Optional[str] = None
+) -> exp.Select:
     kind = show.name.upper()
     if kind == "COLUMNS":
         outputs = [
