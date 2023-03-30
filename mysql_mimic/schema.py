@@ -156,7 +156,7 @@ def info_schema_tables(columns: Iterable[Column]) -> Dict[str, Dict[str, Table]]
     return data
 
 
-def show_statement_to_info_schema_query(show: exp.Show) -> exp.Select:
+def show_statement_to_info_schema_query(show: exp.Show, database: Optional[str] = None) -> exp.Select:
     kind = show.name.upper()
     if kind == "COLUMNS":
         outputs = [
@@ -181,7 +181,7 @@ def show_statement_to_info_schema_query(show: exp.Show) -> exp.Select:
             .from_("information_schema.columns")
             .where(f"table_name = '{table}'")
         )
-        db = show.text("db")
+        db = show.text("db") or database
         if db:
             select = select.where(f"table_schema = '{db}'")
         like = show.text("like")
@@ -193,7 +193,7 @@ def show_statement_to_info_schema_query(show: exp.Show) -> exp.Select:
             outputs.extend(["table_type AS Table_type"])
 
         select = exp.select(*outputs).from_("information_schema.tables")
-        db = show.text("db")
+        db = show.text("db") or database
         if db:
             select = select.where(f"table_schema = '{db}'")
         like = show.text("like")
@@ -230,7 +230,7 @@ def show_statement_to_info_schema_query(show: exp.Show) -> exp.Select:
             .from_("information_schema.statistics")
             .where(f"table_name = '{table}'")
         )
-        db = show.text("db")
+        db = show.text("db") or database
         if db:
             select = select.where(f"table_schema = '{db}'")
     else:
