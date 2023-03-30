@@ -349,14 +349,15 @@ def make_column_definition_41(
     column_type: ColumnType = ColumnType.VARCHAR,
     flags: ColumnDefinition = ColumnDefinition(0),
     decimals: int = 0,
+    is_com_field_list: bool = False,
+    default: Optional[str] = None,
 ) -> bytes:
     schema = schema or ""
     table = table or ""
     org_table = org_table or table
     name = name or ""
     org_name = org_name or name
-
-    return _concat(
+    parts = [
         str_len(b"def"),
         str_len(server_charset.encode(schema)),
         str_len(server_charset.encode(table)),
@@ -370,7 +371,14 @@ def make_column_definition_41(
         uint_2(flags),
         uint_1(decimals),
         uint_2(0),  # filler
-    )
+    ]
+    if is_com_field_list:
+        if default is None:
+            parts.append(uint_len(0))
+        else:
+            default_values = server_charset.encode(default)
+            parts.extend([uint_len(len(default_values)), str_len(default_values)])
+    return _concat(*parts)
 
 
 def make_text_resultset_row(

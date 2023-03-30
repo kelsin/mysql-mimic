@@ -273,7 +273,7 @@ class Session(BaseSession):
                 return self._show_warnings(expression)
             if kind == "ERRORS":
                 return self._show_errors(expression)
-            select = show_statement_to_info_schema_query(expression)
+            select = show_statement_to_info_schema_query(expression, self.database)
             return await self._query_info_schema(select)
         return None
 

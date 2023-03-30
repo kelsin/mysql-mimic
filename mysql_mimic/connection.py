@@ -356,11 +356,13 @@ class Connection:
                 server_charset=self.server_charset,
                 table=com_field_list.table,
                 name=row[0],
+                is_com_field_list=True,
+                default=row[4],
             )
             for row in result.rows
         )
         await self.stream.write(columns)
-        await self.stream.write(self.eof())
+        await self.stream.write(self.ok_or_eof())
 
     async def handle_query(self, data: bytes) -> None:
         """
