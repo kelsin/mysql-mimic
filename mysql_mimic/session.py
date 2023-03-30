@@ -282,7 +282,8 @@ class Session(BaseSession):
         """Intercept DESCRIBE statements"""
         if isinstance(expression, exp.Describe):
             name = expression.this.name
-            return await self.handle_query(f"SHOW COLUMNS FROM {name}", {})
+            show = self.dialect().parse(f"SHOW COLUMNS FROM {name}")[0]
+            return await self._show_interceptor(show)
         return None
 
     async def _rollback_interceptor(self, expression: exp.Expression) -> AllowedResult:
