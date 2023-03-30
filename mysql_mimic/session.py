@@ -120,6 +120,7 @@ class Session(BaseSession):
             self._static_query_interceptor,
             self._use_interceptor,
             self._show_interceptor,
+            self._describe_interceptor,
             self._rollback_interceptor,
             self._info_schema_interceptor,
         ]
@@ -275,6 +276,13 @@ class Session(BaseSession):
                 return self._show_errors(expression)
             select = show_statement_to_info_schema_query(expression)
             return await self._query_info_schema(select)
+        return None
+
+    async def _describe_interceptor(self, expression: exp.Expression) -> AllowedResult:
+        """Intercept DESCRIBE statements"""
+        if isinstance(expression, exp.Describe):
+            name = expression.this.name
+            return await self.handle_query(f"SHOW COLUMNS FROM {name}", {})
         return None
 
     async def _rollback_interceptor(self, expression: exp.Expression) -> AllowedResult:
