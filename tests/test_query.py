@@ -645,6 +645,7 @@ async def test_query_attributes(
                 {"Value": "0", "Variable_name": "lower_case_table_names"},
                 {"Value": "67108864", "Variable_name": "max_allowed_packet"},
                 {"Value": "0", "Variable_name": "max_execution_time"},
+                {"Value": "16384", "Variable_name": "net_buffer_length"},
                 {"Value": "28800", "Variable_name": "net_write_timeout"},
                 {"Value": "False", "Variable_name": "performance_schema"},
                 {"Value": "False", "Variable_name": "sql_auto_is_null"},
