@@ -350,7 +350,7 @@ def make_column_definition_41(
     flags: ColumnDefinition = ColumnDefinition(0),
     decimals: int = 0,
     is_com_field_list: bool = False,
-    default: str | None = None,
+    default: Optional[str] = None,
 ) -> bytes:
     schema = schema or ""
     table = table or ""
