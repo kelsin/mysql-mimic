@@ -687,6 +687,27 @@ async def test_query_attributes(
             ],
         ),
         (
+            "describe x",
+            [
+                {
+                    "Default": None,
+                    "Extra": None,
+                    "Field": "a",
+                    "Key": None,
+                    "Null": "YES",
+                    "Type": "TEXT",
+                },
+                {
+                    "Default": None,
+                    "Extra": None,
+                    "Field": "b",
+                    "Key": None,
+                    "Null": "YES",
+                    "Type": "TEXT",
+                },
+            ],
+        ),
+        (
             "show tables from information_schema like 'k%'",
             [
                 {"Table_name": "key_column_usage"},
