@@ -283,7 +283,11 @@ class Session(BaseSession):
         if isinstance(expression, exp.Describe):
             name = expression.this.name
             show = self.dialect().parse(f"SHOW COLUMNS FROM {name}")[0]
-            return await self._show_interceptor(show) if isinstance(show, exp.Expression) else None
+            return (
+                await self._show_interceptor(show)
+                if isinstance(show, exp.Expression)
+                else None
+            )
         return None
 
     async def _rollback_interceptor(self, expression: exp.Expression) -> AllowedResult:
