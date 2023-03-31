@@ -178,6 +178,10 @@ def show_statement_to_info_schema_query(
                 ]
             )
         table = show.text("target")
+        if not table:
+            raise MysqlError(
+                f"You have an error in your SQL syntax. Table name is missing.", code=ErrorCode.PARSE_ERROR
+            )
         select = (
             exp.select(*outputs)
             .from_("information_schema.columns")
@@ -227,6 +231,10 @@ def show_statement_to_info_schema_query(
             '"expression" AS Expression',
         ]
         table = show.text("target")
+        if not table:
+            raise MysqlError(
+                f"You have an error in your SQL syntax. Table name is missing.", code=ErrorCode.PARSE_ERROR
+            )
         select = (
             exp.select(*outputs)
             .from_("information_schema.statistics")
