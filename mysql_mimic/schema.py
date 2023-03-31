@@ -200,8 +200,11 @@ def show_statement_to_info_schema_query(
 
         select = exp.select(*outputs).from_("information_schema.tables")
         db = show.text("db") or database
-        if db:
-            select = select.where(f"table_schema = '{db}'")
+        if not db:
+            raise MysqlError(
+                f"No database selected.", code=ErrorCode.NO_DB_ERROR
+            )
+        select = select.where(f"table_schema = '{db}'")
         like = show.text("like")
         if like:
             select = select.where(f"table_name LIKE '{like}'")
