@@ -178,6 +178,11 @@ def show_statement_to_info_schema_query(
                 ]
             )
         table = show.text("target")
+        if not table:
+            raise MysqlError(
+                "You have an error in your SQL syntax. Table name is missing.",
+                code=ErrorCode.PARSE_ERROR,
+            )
         select = (
             exp.select(*outputs)
             .from_("information_schema.columns")
@@ -196,8 +201,9 @@ def show_statement_to_info_schema_query(
 
         select = exp.select(*outputs).from_("information_schema.tables")
         db = show.text("db") or database
-        if db:
-            select = select.where(f"table_schema = '{db}'")
+        if not db:
+            raise MysqlError("No database selected.", code=ErrorCode.NO_DB_ERROR)
+        select = select.where(f"table_schema = '{db}'")
         like = show.text("like")
         if like:
             select = select.where(f"table_name LIKE '{like}'")
@@ -227,6 +233,11 @@ def show_statement_to_info_schema_query(
             '"expression" AS Expression',
         ]
         table = show.text("target")
+        if not table:
+            raise MysqlError(
+                "You have an error in your SQL syntax. Table name is missing.",
+                code=ErrorCode.PARSE_ERROR,
+            )
         select = (
             exp.select(*outputs)
             .from_("information_schema.statistics")
