@@ -302,9 +302,15 @@ class Session(BaseSession):
         def _transform(node: exp.Expression) -> exp.Expression:
             new_node = None
 
-            if isinstance(node, exp.Anonymous) and node.name.upper() in self._functions:
-                value = self._functions[node.name.upper()]()
-                new_node = value_to_expression(value)
+            if isinstance(node, exp.Func):
+                if isinstance(node, exp.Anonymous):
+                    func_name = node.name.upper()
+                else:
+                    func_name = node.sql_name()
+                func = self._functions.get(func_name)
+                if func:
+                    value = func()
+                    new_node = value_to_expression(value)
             elif isinstance(node, exp.Column) and node.sql() == "CURRENT_USER":
                 value = self._functions["CURRENT_USER"]()
                 new_node = value_to_expression(value)

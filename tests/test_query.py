@@ -253,7 +253,7 @@ async def test_replace_function(
         assert result[0]["CONNECTION_ID()"] is not None
 
         result = await query(conn, "SELECT CURRENT_USER")
-        assert result[0]["CURRENT_USER"] == "levon_helm"
+        assert result[0]["CURRENT_USER()"] == "levon_helm"
 
         result = await query(conn, "SELECT USER()")
         assert result[0]["USER()"] == "levon_helm"
