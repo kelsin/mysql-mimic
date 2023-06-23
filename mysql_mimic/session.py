@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import (
     Dict,
+    List,
     TYPE_CHECKING,
     Optional,
     Callable,
@@ -207,7 +208,7 @@ class Session(BaseSession):
 
     async def handle_query(self, sql: str, attrs: Dict[str, str]) -> AllowedResult:
         result = None
-        for expression in self.dialect().parse(sql):
+        for expression in self._parse(sql):
             if not expression:
                 continue
             with self._set_var_hint(expression):
@@ -218,6 +219,9 @@ class Session(BaseSession):
 
     async def use(self, database: str) -> None:
         self.database = database
+
+    def _parse(self, sql: str) -> List[exp.Expression]:
+        return [e for e in self.dialect().parse(sql) if e]
 
     async def _query_info_schema(self, expression: exp.Expression) -> AllowedResult:
         return await ensure_info_schema(await self.schema()).query(expression)
