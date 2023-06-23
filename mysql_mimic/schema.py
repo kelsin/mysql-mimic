@@ -162,19 +162,19 @@ def show_statement_to_info_schema_query(
     kind = show.name.upper()
     if kind == "COLUMNS":
         outputs = [
-            "column_name AS Field",
-            "data_type AS Type",
-            "is_nullable AS Null",
-            "column_key AS Key",
-            "column_default AS Default",
-            "extra AS Extra",
+            'column_name AS "Field"',
+            'data_type AS "Type"',
+            'is_nullable AS "Null"',
+            'column_key AS "Key"',
+            'column_default AS "Default"',
+            'extra AS "Extra"',
         ]
         if show.args.get("full"):
             outputs.extend(
                 [
-                    "collation_name AS Collation",
-                    "privileges AS Privileges",
-                    "column_comment AS Comment",
+                    'collation_name AS "Collation"',
+                    'privileges AS "Privileges"',
+                    'column_comment AS "Comment"',
                 ]
             )
         table = show.text("target")
@@ -195,9 +195,9 @@ def show_statement_to_info_schema_query(
         if like:
             select = select.where(f"column_name LIKE '{like}'")
     elif kind == "TABLES":
-        outputs = ["table_name AS Table_name"]
+        outputs = ['table_name AS "Table_name"']
         if show.args.get("full"):
-            outputs.extend(["table_type AS Table_type"])
+            outputs.extend(['table_type AS "Table_type"'])
 
         select = exp.select(*outputs).from_("information_schema.tables")
         db = show.text("db") or database
@@ -208,7 +208,7 @@ def show_statement_to_info_schema_query(
         if like:
             select = select.where(f"table_name LIKE '{like}'")
     elif kind == "DATABASES":
-        select = exp.select("schema_name AS Database").from_(
+        select = exp.select('schema_name AS "Database"').from_(
             "information_schema.schemata"
         )
         like = show.text("like")
