@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from datetime import datetime, timezone as timezone_, timedelta
+from functools import lru_cache
 from typing import (
     Dict,
     List,
@@ -32,7 +34,7 @@ from mysql_mimic.schema import (
     BaseInfoSchema,
     ensure_info_schema,
 )
-from mysql_mimic.constants import INFO_SCHEMA
+from mysql_mimic.constants import INFO_SCHEMA, RE_TIMEZONE
 from mysql_mimic.utils import find_dbs
 from mysql_mimic.variables import Variables, SessionVariables, GlobalVariables, DEFAULT
 from mysql_mimic.results import AllowedResult
@@ -131,12 +133,31 @@ class Session(BaseSession):
         self._functions = {
             "CONNECTION_ID": lambda: self.connection.connection_id,
             "USER": lambda: self.variables.get("external_user"),
-            "SYSTEM_USER": lambda: self.variables.get("external_user"),
-            "SESSION_USER": lambda: self.variables.get("external_user"),
             "CURRENT_USER": lambda: self.username,
             "VERSION": lambda: self.variables.get("version"),
             "DATABASE": lambda: self.database,
-            "SCHEMA": lambda: self.database,
+            "NOW": lambda: self.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            "CURDATE": lambda: self.timestamp.strftime("%Y-%m-%d"),
+            "CURTIME": lambda: self.timestamp.strftime("%H:%M:%S"),
+        }
+        # Synonyms
+        self._functions.update(
+            {
+                "SYSTEM_USER": self._functions["USER"],
+                "SESSION_USER": self._functions["USER"],
+                "SCHEMA": self._functions["DATABASE"],
+                "CURRENT_TIMESTAMP": self._functions["NOW"],
+                "LOCALTIME": self._functions["NOW"],
+                "LOCALTIMESTAMP": self._functions["NOW"],
+                "CURRENT_DATE": self._functions["CURDATE"],
+                "CURRENT_TIME": self._functions["CURTIME"],
+            }
+        )
+        self._constants = {
+            "CURRENT_USER",
+            "CURRENT_TIME",
+            "CURRENT_TIMESTAMP",
+            "CURRENT_DATE",
         }
 
         # Current database
@@ -144,6 +165,10 @@ class Session(BaseSession):
 
         # Current authenticated user
         self.username = None
+
+        # Time when query started
+        self.timestamp: datetime = datetime.now()
+        self._cached_timezone = lru_cache(maxsize=24)(self.parse_timezone)
 
         self._connection: Optional[Connection] = None
 
@@ -207,6 +232,7 @@ class Session(BaseSession):
         self._connection = None
 
     async def handle_query(self, sql: str, attrs: Dict[str, str]) -> AllowedResult:
+        self.timestamp = datetime.now(tz=self.timezone())
         result = None
         for expression in self._parse(sql):
             if not expression:
@@ -315,8 +341,8 @@ class Session(BaseSession):
                 if func:
                     value = func()
                     new_node = value_to_expression(value)
-            elif isinstance(node, exp.Column) and node.sql() == "CURRENT_USER":
-                value = self._functions["CURRENT_USER"]()
+            elif isinstance(node, exp.Column) and node.sql() in self._constants:
+                value = self._functions[node.sql()]()
                 new_node = value_to_expression(value)
             elif isinstance(node, exp.SessionParameter):
                 value = self.variables.get(node.name)
@@ -474,3 +500,20 @@ class Session(BaseSession):
 
     def _show_errors(self, show: exp.Show) -> AllowedResult:
         return [], ["Level", "Code", "Message"]
+
+    def timezone(self) -> timezone_:
+        tz = self.variables.get("time_zone")
+        return self._cached_timezone(tz)
+
+    def parse_timezone(self, tz: str) -> timezone_:
+        if tz.lower() == "utc":
+            return timezone_.utc
+        match = RE_TIMEZONE.match(tz)
+        if not match:
+            raise MysqlError(msg=f"Invalid timezone: {tz}")
+        offset = timedelta(
+            hours=int(match.group("hours")), minutes=int(match.group("minutes"))
+        )
+        if match.group("sign") == "-":
+            offset = offset * -1
+        return timezone_(offset)

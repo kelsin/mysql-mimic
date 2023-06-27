@@ -43,7 +43,7 @@ SYSTEM_VARIABLES: dict[str, VariableSchema] = {
     "sql_mode": (str, "ANSI", True),
     "sql_select_limit": (int, None, True),
     "system_time_zone": (str, "UTC", False),
-    "time_zone": (str, "UTC", False),
+    "time_zone": (str, "UTC", True),
     "transaction_read_only": (bool, False, True),
     "transaction_isolation": (str, "READ-COMMITTED", True),
     "version": (str, "8.0.29", False),
