@@ -10,6 +10,7 @@ from mysql.connector.abstracts import MySQLConnectionAbstract
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 import aiomysql
+from freezegun import freeze_time
 
 from mysql_mimic import ResultColumn, ResultSet, MysqlServer, context
 from mysql_mimic.charset import CharacterSet
@@ -779,6 +780,18 @@ async def test_query_attributes(
                 },
             ],
         ),
+        # Timestamps
+        (
+            "select now(), curtime(), curdate(), current_time",
+            [
+                {
+                    "NOW()": "2023-01-01 00:00:00",
+                    "CURTIME()": "00:00:00",
+                    "CURDATE()": "2023-01-01",
+                    "CURRENT_TIME()": "00:00:00",
+                }
+            ],
+        ),
     ],
 )
 async def test_commands(
@@ -788,8 +801,9 @@ async def test_commands(
     sql: str,
     expected: List[Dict[str, Any]],
 ) -> None:
-    result = await query_fixture(sql)
-    assert expected == list(result)
+    with freeze_time("2023-01-01"):
+        result = await query_fixture(sql)
+        assert expected == list(result)
 
 
 @pytest.mark.asyncio

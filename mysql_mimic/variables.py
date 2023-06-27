@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import abc
+import re
+from datetime import timezone, timedelta
+from functools import lru_cache
 from typing import Any, Callable, Tuple
 
 from mysql_mimic.charset import CharacterSet, Collation
@@ -43,7 +46,7 @@ SYSTEM_VARIABLES: dict[str, VariableSchema] = {
     "sql_mode": (str, "ANSI", True),
     "sql_select_limit": (int, None, True),
     "system_time_zone": (str, "UTC", False),
-    "time_zone": (str, "UTC", False),
+    "time_zone": (str, "UTC", True),
     "transaction_read_only": (bool, False, True),
     "transaction_isolation": (str, "READ-COMMITTED", True),
     "version": (str, "8.0.29", False),
@@ -121,3 +124,21 @@ class SessionVariables(Variables):
     @property
     def schema(self) -> dict[str, VariableSchema]:
         return self.global_variables.schema
+
+
+RE_TIMEZONE = re.compile(r"^(?P<sign>[+-])(?P<hours>\d\d):(?P<minutes>\d\d)")
+
+
+@lru_cache(maxsize=48)
+def parse_timezone(tz: str) -> timezone:
+    if tz.lower() == "utc":
+        return timezone.utc
+    match = RE_TIMEZONE.match(tz)
+    if not match:
+        raise MysqlError(msg=f"Invalid timezone: {tz}")
+    offset = timedelta(
+        hours=int(match.group("hours")), minutes=int(match.group("minutes"))
+    )
+    if match.group("sign") == "-":
+        offset = offset * -1
+    return timezone(offset)

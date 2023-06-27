@@ -23,6 +23,7 @@ setup(
             "mysql-connector-python",
             "black",
             "coverage",
+            "freezegun",
             "gssapi",
             "k5test",
             "pylint",
