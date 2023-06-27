@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import re
-
 from mysql_mimic.types import Capabilities
 
 DEFAULT_SERVER_CAPABILITIES = (
@@ -390,6 +388,3 @@ INFO_SCHEMA = {
         },
     },
 }
-
-
-RE_TIMEZONE = re.compile(r"^(?P<sign>[+-])(?P<hours>\d\d):(?P<minutes>\d\d)")

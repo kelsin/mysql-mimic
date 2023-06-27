@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import datetime, timezone as timezone_, timedelta
-from functools import lru_cache
+from datetime import datetime, timezone as timezone_
 from typing import (
     Dict,
     List,
@@ -34,9 +33,15 @@ from mysql_mimic.schema import (
     BaseInfoSchema,
     ensure_info_schema,
 )
-from mysql_mimic.constants import INFO_SCHEMA, RE_TIMEZONE
+from mysql_mimic.constants import INFO_SCHEMA
 from mysql_mimic.utils import find_dbs
-from mysql_mimic.variables import Variables, SessionVariables, GlobalVariables, DEFAULT
+from mysql_mimic.variables import (
+    Variables,
+    SessionVariables,
+    GlobalVariables,
+    DEFAULT,
+    parse_timezone,
+)
 from mysql_mimic.results import AllowedResult
 
 if TYPE_CHECKING:
@@ -168,7 +173,6 @@ class Session(BaseSession):
 
         # Time when query started
         self.timestamp: datetime = datetime.now()
-        self._cached_timezone = lru_cache(maxsize=24)(self.parse_timezone)
 
         self._connection: Optional[Connection] = None
 
@@ -503,17 +507,4 @@ class Session(BaseSession):
 
     def timezone(self) -> timezone_:
         tz = self.variables.get("time_zone")
-        return self._cached_timezone(tz)
-
-    def parse_timezone(self, tz: str) -> timezone_:
-        if tz.lower() == "utc":
-            return timezone_.utc
-        match = RE_TIMEZONE.match(tz)
-        if not match:
-            raise MysqlError(msg=f"Invalid timezone: {tz}")
-        offset = timedelta(
-            hours=int(match.group("hours")), minutes=int(match.group("minutes"))
-        )
-        if match.group("sign") == "-":
-            offset = offset * -1
-        return timezone_(offset)
+        return parse_timezone(tz)
