@@ -213,7 +213,7 @@ class KerberosAuthPlugin(AuthPlugin):
         except GSSError as e:
             yield Forbidden(str(e))
 
-        username = str(server_ctx.initiator_name).split("@")[0]
+        username = str(server_ctx.initiator_name).split("@", 1)[0]
         if auth_info.username and auth_info.username != username:
             yield Forbidden("Given username different than kerberos client")
         yield Success(username)
