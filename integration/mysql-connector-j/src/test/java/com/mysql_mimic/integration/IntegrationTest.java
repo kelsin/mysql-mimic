@@ -53,19 +53,11 @@ public class IntegrationTest
         Connection conn = DriverManager.getConnection(url);
 
         Statement stmt = conn.createStatement();
-        ResultSet rs = stmt.executeQuery("SELECT a FROM x ORDER BY a");
+        ResultSet rs = stmt.executeQuery("SELECT CURRENT_USER AS CURRENT_USER");
 
-        List<Integer> result = new ArrayList<>();
-        while (rs.next()) {
-            result.add(rs.getInt("a"));
-        }
+        rs.next();
 
-        List<Integer> expected = new ArrayList<>();
-        expected.add(1);
-        expected.add(2);
-        expected.add(3);
-
-        assertEquals(expected, result);
+        assertEquals("krb5_user", rs.getString("CURRENT_USER"));
     }
 
     @Test(expected = SQLException.class)
