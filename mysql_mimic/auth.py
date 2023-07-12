@@ -190,6 +190,7 @@ class KerberosAuthPlugin(AuthPlugin):
 
     async def auth(self, auth_info: Optional[AuthInfo] = None) -> AuthState:
         import gssapi
+        from gssapi.exceptions import GSSError
 
         # Fast authentication not supported
         if not auth_info:
@@ -207,19 +208,15 @@ class KerberosAuthPlugin(AuthPlugin):
         )
         server_ctx = gssapi.SecurityContext(usage="accept", creds=server_creds)
 
-        client_name = gssapi.Name(f"{auth_info.username}@{self.realm}").canonicalize(
-            gssapi.MechType.kerberos
-        )
-        client_token = auth_info.data
+        try:
+            server_ctx.step(auth_info.data)
+        except GSSError as e:
+            yield Forbidden(str(e))
 
-        server_token = server_ctx.step(client_token)
-
-        if server_ctx.initiator_name == client_name:
-            if gssapi.RequirementFlag.mutual_authentication in server_ctx.actual_flags:
-                auth_info = yield server_token
-            yield Success(auth_info.username)
-        else:
-            yield Forbidden()
+        username = str(server_ctx.initiator_name).split("@", 1)[0]
+        if auth_info.username and auth_info.username != username:
+            yield Forbidden("Given username different than kerberos client")
+        yield Success(username)
 
 
 class NoLoginAuthPlugin(AuthPlugin):
