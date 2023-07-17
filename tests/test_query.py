@@ -359,6 +359,14 @@ async def test_query_attributes(
             "SELECT /*+ SET_VAR(max_execution_time=1) */ @@max_execution_time",
             [{"@@max_execution_time": 1}],
         ),
+        (
+            "SELECT /*+ SET_VAR(max_execution_time=1, sql_mode = 'foo') */ @@max_execution_time, @@sql_mode",
+            [{"@@max_execution_time": 1, "@@sql_mode": "foo"}],
+        ),
+        (
+            "SELECT /*+ SET_VAR(max_execution_time=1, sql_mode = 'foo') EXECUTE_AS('barak_alon') */ @@max_execution_time, @@sql_mode",
+            [{"@@max_execution_time": 1, "@@sql_mode": "foo"}],
+        ),
         # SET names
         (
             """
