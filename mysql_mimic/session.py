@@ -264,11 +264,20 @@ class Session(BaseSession):
             yield
             return
 
+        set_var_hint = None
         assignments = {}
         for e in hint.expressions:
             if isinstance(e, exp.Func) and e.name == "SET_VAR":
-                eq = e.expressions[0]
-                assignments[eq.left.name] = expression_to_value(eq.right)
+                set_var_hint = e
+                for eq in e.expressions:
+                    assignments[eq.left.name] = expression_to_value(eq.right)
+
+        if set_var_hint:
+            set_var_hint.pop()
+
+        # Remove the hint entirely if SET_VAR was the only expression
+        if not hint.expressions:
+            hint.pop()
 
         orig = {k: self.variables.get(k) for k in assignments}
         try:
