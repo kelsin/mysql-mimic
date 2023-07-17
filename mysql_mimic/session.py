@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime, timezone as timezone_
 from typing import (
     Dict,
@@ -11,7 +11,6 @@ from typing import (
     Awaitable,
     Type,
     Any,
-    Iterator,
 )
 
 from sqlglot import Dialect
@@ -47,7 +46,54 @@ from mysql_mimic.results import AllowedResult
 if TYPE_CHECKING:
     from mysql_mimic.connection import Connection
 
-    Interceptor = Callable[[exp.Expression], Awaitable[AllowedResult]]
+
+Middleware = Callable[["Query"], Awaitable[AllowedResult]]
+
+
+@dataclass
+class Query:
+    """
+    Convenience class that wraps the parameters to middleware.
+
+    Args:
+        expression: current query expression
+        sql: the original SQL sent by the client
+        attrs: query attributes
+        _middlewares: subsequent middleware functions
+        _query: the ultimate query method
+    """
+
+    expression: exp.Expression
+    sql: str
+    attrs: Dict[str, str]
+    _middlewares: list[Middleware]
+    _query: Callable[[exp.Expression, str, dict[str, str]], Awaitable[AllowedResult]]
+
+    async def next(self) -> AllowedResult:
+        """
+        Call the next middleware in the chain of middlewares.
+
+        Returns:
+            The final query result.
+        """
+        if not self._middlewares:
+            return await self._query(self.expression, self.sql, self.attrs)
+        q = Query(
+            expression=self.expression,
+            sql=self.sql,
+            attrs=self.attrs,
+            _middlewares=self._middlewares[1:],
+            _query=self._query,
+        )
+        return await self._middlewares[0](q)
+
+    async def start(self) -> AllowedResult:
+        """
+        Start the middleware chain.
+
+        This should only be called by the framework code
+        """
+        return await self._middlewares[0](self)
 
 
 class BaseSession:
@@ -120,17 +166,18 @@ class Session(BaseSession):
     def __init__(self, variables: Variables | None = None):
         self.variables = variables or SessionVariables(GlobalVariables())
 
-        # Query interceptors.
-        # If any of these return a non-None value, the query will be cut short.
-        self.interceptors: list[Interceptor] = [
-            self._replace_variables_interceptor,
-            self._set_interceptor,
-            self._static_query_interceptor,
-            self._use_interceptor,
-            self._show_interceptor,
-            self._describe_interceptor,
-            self._rollback_interceptor,
-            self._info_schema_interceptor,
+        # Query middlewares.
+        # These allow queries to be intercepted or wrapped.
+        self.middlewares: list[Middleware] = [
+            self._set_var_middleware,
+            self._replace_variables_middleware,
+            self._set_middleware,
+            self._static_query_middleware,
+            self._use_middleware,
+            self._show_middleware,
+            self._describe_middleware,
+            self._rollback_middleware,
+            self._info_schema_middleware,
         ]
 
         # Information functions.
@@ -241,10 +288,14 @@ class Session(BaseSession):
         for expression in self._parse(sql):
             if not expression:
                 continue
-            with self._set_var_hint(expression):
-                result = await self._intercept(expression, sql, attrs)
-                if result is None:
-                    result = await self.query(expression, sql, attrs)
+            q = Query(
+                expression=expression,
+                sql=sql,
+                attrs=attrs,
+                _middlewares=self.middlewares,
+                _query=self.query,
+            )
+            result = await q.start()
         return result
 
     async def use(self, database: str) -> None:
@@ -256,13 +307,11 @@ class Session(BaseSession):
     async def _query_info_schema(self, expression: exp.Expression) -> AllowedResult:
         return await ensure_info_schema(await self.schema()).query(expression)
 
-    @contextmanager
-    def _set_var_hint(self, expression: exp.Expression) -> Iterator[None]:
+    async def _set_var_middleware(self, q: Query) -> AllowedResult:
         """Handles any SET_VAR hints, which set system variables for a single statement"""
-        hint = expression.args.get("hint")
+        hint = q.expression.args.get("hint")
         if not hint:
-            yield
-            return
+            return await q.next()
 
         set_var_hint = None
         assignments = {}
@@ -283,63 +332,52 @@ class Session(BaseSession):
         try:
             for k, v in assignments.items():
                 self.variables.set(k, v)
-            yield
+            return await q.next()
         finally:
             for k, v in orig.items():
                 self.variables.set(k, v)
 
-    async def _intercept(
-        self, expression: exp.Expression, sql: str, attrs: Dict[str, str]
-    ) -> AllowedResult:
-        """Run all the query interceptors."""
-        for interceptor in self.interceptors:
-            result = await interceptor(expression)
-            if result is not None:
-                return result
-        return None
-
-    async def _use_interceptor(self, expression: exp.Expression) -> AllowedResult:
+    async def _use_middleware(self, q: Query) -> AllowedResult:
         """Intercept USE statements"""
-        if isinstance(expression, exp.Use):
-            await self.use(expression.this.name)
+        if isinstance(q.expression, exp.Use):
+            await self.use(q.expression.this.name)
             return [], []
-        return None
+        return await q.next()
 
-    async def _show_interceptor(self, expression: exp.Expression) -> AllowedResult:
+    async def _show_middleware(self, q: Query) -> AllowedResult:
         """Intercept SHOW statements"""
-        if isinstance(expression, exp.Show):
-            kind = expression.name.upper()
-            if kind == "VARIABLES":
-                return self._show_variables(expression)
-            if kind == "STATUS":
-                return self._show_status(expression)
-            if kind == "WARNINGS":
-                return self._show_warnings(expression)
-            if kind == "ERRORS":
-                return self._show_errors(expression)
-            select = show_statement_to_info_schema_query(expression, self.database)
-            return await self._query_info_schema(select)
-        return None
+        if isinstance(q.expression, exp.Show):
+            return await self._show(q.expression)
+        return await q.next()
 
-    async def _describe_interceptor(self, expression: exp.Expression) -> AllowedResult:
+    async def _show(self, expression: exp.Show) -> AllowedResult:
+        kind = expression.name.upper()
+        if kind == "VARIABLES":
+            return self._show_variables(expression)
+        if kind == "STATUS":
+            return self._show_status(expression)
+        if kind == "WARNINGS":
+            return self._show_warnings(expression)
+        if kind == "ERRORS":
+            return self._show_errors(expression)
+        select = show_statement_to_info_schema_query(expression, self.database)
+        return await self._query_info_schema(select)
+
+    async def _describe_middleware(self, q: Query) -> AllowedResult:
         """Intercept DESCRIBE statements"""
-        if isinstance(expression, exp.Describe):
-            name = expression.this.name
+        if isinstance(q.expression, exp.Describe):
+            name = q.expression.this.name
             show = self.dialect().parse(f"SHOW COLUMNS FROM {name}")[0]
-            return (
-                await self._show_interceptor(show)
-                if isinstance(show, exp.Expression)
-                else None
-            )
-        return None
+            return await self._show(show) if isinstance(show, exp.Show) else None
+        return await q.next()
 
-    async def _rollback_interceptor(self, expression: exp.Expression) -> AllowedResult:
+    async def _rollback_middleware(self, q: Query) -> AllowedResult:
         """Intercept ROLLBACK statements"""
-        if isinstance(expression, exp.Rollback):
+        if isinstance(q.expression, exp.Rollback):
             return [], []
-        return None
+        return await q.next()
 
-    async def _replace_variables_interceptor(self, expression: exp.Expression) -> None:
+    async def _replace_variables_middleware(self, q: Query) -> AllowedResult:
         """Replace session variables and information functions with their corresponding values"""
 
         def _transform(node: exp.Expression) -> exp.Expression:
@@ -370,8 +408,8 @@ class Session(BaseSession):
 
             return new_node or node
 
-        if isinstance(expression, exp.Set):
-            for setitem in expression.expressions:
+        if isinstance(q.expression, exp.Set):
+            for setitem in q.expression.expressions:
                 if isinstance(setitem.this, exp.Binary):
                     # In the case of statements like: SET @@foo = @@bar
                     # We only want to replace variables on the right
@@ -380,28 +418,28 @@ class Session(BaseSession):
                         setitem.this.expression.transform(_transform, copy=True),
                     )
         else:
-            expression.transform(_transform, copy=False)
+            q.expression.transform(_transform, copy=False)
 
-    async def _static_query_interceptor(
-        self, expression: exp.Expression
-    ) -> AllowedResult:
+        return await q.next()
+
+    async def _static_query_middleware(self, q: Query) -> AllowedResult:
         """
         Handle static queries (e.g. SELECT 1).
 
         These very common, as many clients execute commands like SELECT DATABASE() when connecting.
         """
-        if isinstance(expression, exp.Select) and not any(
-            expression.args.get(a)
+        if isinstance(q.expression, exp.Select) and not any(
+            q.expression.args.get(a)
             for a in set(exp.Select.arg_types) - {"expressions", "limit", "hint"}
         ):
-            result = execute(expression)
+            result = execute(q.expression)
             return result.rows, result.columns
-        return None
+        return await q.next()
 
-    async def _set_interceptor(self, expression: exp.Expression) -> AllowedResult:
+    async def _set_middleware(self, q: Query) -> AllowedResult:
         """Intercept SET statements"""
-        if isinstance(expression, exp.Set):
-            expressions = expression.expressions
+        if isinstance(q.expression, exp.Set):
+            expressions = q.expression.expressions
             for item in expressions:
                 assert isinstance(item, exp.SetItem)
 
@@ -422,18 +460,16 @@ class Session(BaseSession):
                     )
 
             return [], []
-        return None
+        return await q.next()
 
-    async def _info_schema_interceptor(
-        self, expression: exp.Expression
-    ) -> AllowedResult:
+    async def _info_schema_middleware(self, q: Query) -> AllowedResult:
         """Intercept queries to INFORMATION_SCHEMA tables"""
-        dbs = find_dbs(expression)
+        dbs = find_dbs(q.expression)
         if (self.database and self.database.lower() in INFO_SCHEMA) or (
             dbs and all(db.lower() in INFO_SCHEMA for db in dbs)
         ):
-            return await self._query_info_schema(expression)
-        return None
+            return await self._query_info_schema(q.expression)
+        return await q.next()
 
     def _set_variable(self, setitem: exp.SetItem) -> None:
         assignment = setitem.this
