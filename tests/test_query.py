@@ -274,22 +274,25 @@ async def test_query_attributes(
 ) -> None:
     session.echo = True
 
-    for i, q in enumerate(
-        [
-            partial(query, conn=mysql_connector_conn),
-            partial(query, conn=mysql_connector_conn, cursor_class=PreparedDictCursor),
-        ]
-    ):
-        session.last_query_attrs = None
-        sql = "SELECT 1 FROM x"
-        query_attrs = {
-            "idx": i,
-            "str": "foo",
-            "int": 1,
-            "float": 1.1,
-        }
-        await q(sql=sql, query_attributes=query_attrs)
-        assert session.last_query_attrs == query_attrs
+    sql = "SELECT 1 FROM x"
+    query_attrs = {
+        "id": "foo",
+        "str": "foo",
+        "int": 1,
+        "float": 1.1,
+    }
+    await query(sql=sql, conn=mysql_connector_conn, query_attributes=query_attrs)
+    assert session.last_query_attrs == query_attrs
+
+    session.last_query_attrs = None
+    query_attrs = {**query_attrs, "id": "bar"}
+    await query(
+        sql=sql,
+        conn=mysql_connector_conn,
+        query_attributes=query_attrs,
+        cursor_class=PreparedDictCursor,
+    )
+    assert session.last_query_attrs == query_attrs
 
 
 # pylint: disable=trailing-whitespace

@@ -39,7 +39,7 @@ class MysqlStream:
             if payload_length == 0:
                 return data
 
-            data += await self.reader.read(payload_length)
+            data += await self.reader.readexactly(payload_length)
 
             if payload_length < 0xFFFFFF:
                 return data
