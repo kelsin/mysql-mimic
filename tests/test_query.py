@@ -1,7 +1,6 @@
 import io
 from contextlib import closing
 from datetime import date, datetime, timedelta
-from functools import partial
 from typing import Any, Callable, Awaitable, Sequence, Dict, List, Tuple, Type
 
 import pytest
