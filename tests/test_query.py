@@ -286,7 +286,7 @@ async def test_query_attributes(
     await query(
         sql=sql,
         conn=mysql_connector_conn,
-        query_attributes=query_attrs,
+        query_attributes=query_attrs,  # type: ignore
         cursor_class=cursor_class,
     )
     assert session.last_query_attrs == query_attrs
