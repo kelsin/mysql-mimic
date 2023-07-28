@@ -1,12 +1,12 @@
 import io
 from contextlib import closing
 from datetime import date, datetime, timedelta
-from functools import partial
-from typing import Any, Callable, Awaitable, Sequence, Dict, List, Tuple
+from typing import Any, Callable, Awaitable, Sequence, Dict, List, Tuple, Type
 
 import pytest
 import pytest_asyncio
 from mysql.connector.abstracts import MySQLConnectionAbstract
+from mysql.connector.cursor import MySQLCursorDict, MySQLCursor
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 import aiomysql
@@ -267,29 +267,29 @@ async def test_replace_function(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("cursor_class", [MySQLCursorDict, PreparedDictCursor])
 async def test_query_attributes(
     session: MockSession,
     server: MysqlServer,
     mysql_connector_conn: MySQLConnectionAbstract,
+    cursor_class: Type[MySQLCursor],
 ) -> None:
     session.echo = True
 
-    for i, q in enumerate(
-        [
-            partial(query, conn=mysql_connector_conn),
-            partial(query, conn=mysql_connector_conn, cursor_class=PreparedDictCursor),
-        ]
-    ):
-        session.last_query_attrs = None
-        sql = "SELECT 1 FROM x"
-        query_attrs = {
-            "idx": i,
-            "str": "foo",
-            "int": 1,
-            "float": 1.1,
-        }
-        await q(sql=sql, query_attributes=query_attrs)
-        assert session.last_query_attrs == query_attrs
+    sql = "SELECT 1 FROM x"
+    query_attrs = {
+        "id": cursor_class.__name__,
+        "str": "foo",
+        "int": 1,
+        "float": 1.1,
+    }
+    await query(
+        sql=sql,
+        conn=mysql_connector_conn,
+        query_attributes=query_attrs,  # type: ignore
+        cursor_class=cursor_class,
+    )
+    assert session.last_query_attrs == query_attrs
 
 
 # pylint: disable=trailing-whitespace

@@ -16,6 +16,8 @@ class MockReader:
 
         return self.data[start:end]
 
+    readexactly = read
+
 
 class MockWriter:
     def __init__(self) -> None:
