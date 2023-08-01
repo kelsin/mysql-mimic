@@ -4,12 +4,23 @@ import io
 import struct
 from dataclasses import dataclass
 from datetime import datetime, date, timedelta
-from typing import Iterable, Sequence, Optional, Callable, Any, Union, Tuple, Dict
+from typing import (
+    Iterable,
+    Sequence,
+    Optional,
+    Callable,
+    Any,
+    Union,
+    Tuple,
+    Dict,
+    AsyncIterable,
+    cast,
+)
 
 from mysql_mimic.errors import MysqlError
 from mysql_mimic.types import ColumnType, str_len, uint_1, uint_2, uint_4
 from mysql_mimic.charset import CharacterSet
-
+from mysql_mimic.utils import aiterate
 
 Encoder = Callable[[Any, "ResultColumn"], bytes]
 
@@ -54,7 +65,7 @@ class ResultColumn:
 
 @dataclass
 class ResultSet:
-    rows: Iterable[Sequence]
+    rows: Iterable[Sequence] | AsyncIterable[Sequence]
     columns: Sequence[ResultColumn]
 
     def __bool__(self) -> bool:
@@ -63,11 +74,14 @@ class ResultSet:
 
 AllowedColumn = Union[ResultColumn, str]
 AllowedResult = Union[
-    ResultSet, Tuple[Sequence[Sequence[Any]], Sequence[AllowedColumn]], None
+    ResultSet,
+    Tuple[Sequence[Sequence[Any]], Sequence[AllowedColumn]],
+    Tuple[AsyncIterable[Sequence[Any]], Sequence[AllowedColumn]],
+    None,
 ]
 
 
-def ensure_result_set(result: AllowedResult) -> ResultSet:
+async def ensure_result_set(result: AllowedResult) -> ResultSet:
     if result is None:
         return ResultSet([], [])
     if isinstance(result, ResultSet):
@@ -80,39 +94,74 @@ def ensure_result_set(result: AllowedResult) -> ResultSet:
         rows = result[0]
         columns = result[1]
 
-        return ResultSet(
-            rows=rows,
-            columns=[_ensure_result_col(col, i, rows) for i, col in enumerate(columns)],
-        )
+        return await _ensure_result_cols(rows, columns)
 
     raise MysqlError(f"Unexpected result set type: {type(result)}")
 
 
-def _ensure_result_col(
-    column: AllowedColumn, idx: int, rows: Sequence[Sequence[Any]]
-) -> ResultColumn:
-    if isinstance(column, ResultColumn):
-        return column
+async def _ensure_result_cols(
+    rows: Sequence[Sequence[Any]] | AsyncIterable[Sequence[Any]],
+    columns: Sequence[AllowedColumn],
+) -> ResultSet:
+    # Which columns need to be inferred?
+    remaining = {
+        col: i for i, col in enumerate(columns) if not isinstance(col, ResultColumn)
+    }
 
-    if isinstance(column, str):
-        value = _find_first_non_null_value(idx, rows)
-        type_ = infer_type(value)
-        return ResultColumn(
-            name=column,
-            type=type_,
+    if not remaining:
+        return ResultSet(
+            rows=rows,
+            columns=cast(Sequence[ResultColumn], columns),
         )
 
-    raise MysqlError(f"Unexpected result column value: {column}")
+    # Copy the columns
+    columns = list(columns)
 
+    arows = aiterate(rows)
 
-def _find_first_non_null_value(
-    idx: int, rows: Sequence[Sequence[Any]]
-) -> Optional[Any]:
-    for row in rows:
-        value = row[idx]
-        if value is not None:
-            return value
-    return None
+    # Keep track of rows we've consumed from the iterator so we can add them back
+    peeks = []
+
+    # Find the first non-null value for each column
+    while remaining:
+        try:
+            peek = await anext(arows)
+        except StopAsyncIteration:
+            break
+
+        peeks.append(peek)
+
+        inferred = []
+        for name, i in remaining.items():
+            value = peek[i]
+            if value is not None:
+                type_ = infer_type(value)
+                columns[i] = ResultColumn(
+                    name=str(name),
+                    type=type_,
+                )
+                inferred.append(name)
+
+        for name in inferred:
+            remaining.pop(name)
+
+    # If we failed to find a non-null value, set the type to NULL
+    for name, i in remaining.items():
+        columns[i] = ResultColumn(
+            name=str(name),
+            type=ColumnType.NULL,
+        )
+
+    # Add the consumed rows back in to the iterator
+    async def gen_rows() -> AsyncIterable[Sequence[Any]]:
+        for row in peeks:
+            yield row
+
+        async for row in arows:
+            yield row
+
+    assert all(isinstance(col, ResultColumn) for col in columns)
+    return ResultSet(rows=gen_rows(), columns=cast(Sequence[ResultColumn], columns))
 
 
 def _binary_encode_tiny(col: ResultColumn, val: Any) -> bytes:

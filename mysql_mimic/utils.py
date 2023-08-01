@@ -1,13 +1,17 @@
 from __future__ import annotations
+
+import inspect
 import sys
 from collections.abc import Iterator
 import random
-from typing import List
+from typing import List, TypeVar, AsyncIterable, Iterable, AsyncIterator, cast
 import string
 
 from sqlglot import expressions as exp
 from sqlglot.optimizer.scope import traverse_scope
 
+
+T = TypeVar("T")
 
 # MySQL Connector/J uses ASCII to decode nonce
 SAFE_NONCE_CHARS = (string.ascii_letters + string.digits).encode()
@@ -92,3 +96,13 @@ def dict_depth(d: dict) -> int:
     except StopIteration:
         # d.values() returns an empty sequence
         return 1
+
+
+async def aiterate(iterable: AsyncIterable[T] | Iterable[T]) -> AsyncIterator[T]:
+    """Iterate either an async iterable or a regular iterable"""
+    if inspect.isasyncgen(iterable):
+        async for item in iterable:
+            yield item
+    else:
+        for item in cast(Iterable, iterable):
+            yield item
