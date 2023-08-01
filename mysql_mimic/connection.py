@@ -1,6 +1,6 @@
 import logging
 from ssl import SSLContext
-from typing import Optional, Dict, Any, Iterator
+from typing import Optional, Dict, Any, Iterator, AsyncIterator
 
 from mysql_mimic.auth import (
     AuthInfo,
@@ -26,7 +26,7 @@ from mysql_mimic.schema import com_field_list_to_show_statement
 from mysql_mimic.session import BaseSession
 from mysql_mimic.stream import MysqlStream, ConnectionClosed
 from mysql_mimic.types import Capabilities
-from mysql_mimic.utils import seq
+from mysql_mimic.utils import seq, aiterate
 
 logger = logging.getLogger(__name__)
 
@@ -352,14 +352,16 @@ class Connection:
         sql = com_field_list_to_show_statement(com_field_list)
         result = await self.query(sql=sql, query_attrs={})
         columns = b"".join(
-            make_column_definition_41(
-                server_charset=self.server_charset,
-                table=com_field_list.table,
-                name=row[0],
-                is_com_field_list=True,
-                default=row[4],
-            )
-            for row in result.rows
+            [
+                make_column_definition_41(
+                    server_charset=self.server_charset,
+                    table=com_field_list.table,
+                    name=row[0],
+                    is_com_field_list=True,
+                    default=row[4],
+                )
+                async for row in aiterate(result.rows)
+            ]
         )
         await self.stream.write(columns)
         await self.stream.write(self.ok_or_eof())
@@ -383,7 +385,7 @@ class Connection:
             await self.stream.write(self.ok())
             return
 
-        for packet in self.text_resultset(result_set):
+        async for packet in self.text_resultset(result_set):
             await self.stream.write(packet)
 
     async def handle_stmt_prepare(self, data: bytes) -> None:
@@ -457,10 +459,11 @@ class Connection:
                 )
             )
 
-        rows = (
-            packets.make_binary_resultrow(r, result_set.columns)
-            for r in result_set.rows
-        )
+        async def gen_rows() -> AsyncIterator[bytes]:
+            async for r in aiterate(result_set.rows):
+                yield packets.make_binary_resultrow(r, result_set.columns)
+
+        rows = gen_rows()
 
         if com_stmt_execute.use_cursor:
             com_stmt_execute.stmt.cursor = rows
@@ -470,7 +473,7 @@ class Connection:
         else:
             if not self.deprecate_eof():
                 await self.stream.write(self.eof())
-            for row in rows:
+            async for row in rows:
                 await self.stream.write(row)
             await self.stream.write(self.ok_or_eof())
 
@@ -485,7 +488,10 @@ class Connection:
         stmt = self.get_stmt(com_stmt_fetch.stmt_id)
         assert stmt.cursor is not None
         count = 0
-        for _, packet in zip(range(com_stmt_fetch.num_rows), stmt.cursor):
+
+        async for packet in stmt.cursor:
+            if count >= com_stmt_fetch.num_rows:
+                break
             await self.stream.write(packet)
             count += 1
 
@@ -530,7 +536,7 @@ class Connection:
     async def query(self, sql: str, query_attrs: Dict[str, str]) -> ResultSet:
         logger.debug("Received query: %s", sql)
 
-        result_set = ensure_result_set(
+        result_set = await ensure_result_set(
             await self.session.handle_query(sql, query_attrs)
         )
         return result_set
@@ -574,7 +580,7 @@ class Connection:
     def deprecate_eof(self) -> bool:
         return Capabilities.CLIENT_DEPRECATE_EOF in self.capabilities
 
-    def text_resultset(self, result_set: ResultSet) -> Iterator[bytes]:
+    async def text_resultset(self, result_set: ResultSet) -> AsyncIterator[bytes]:
         yield packets.make_column_count(
             capabilities=self.capabilities, column_count=len(result_set.columns)
         )
@@ -592,7 +598,7 @@ class Connection:
 
         affected_rows = 0
 
-        for row in result_set.rows:
+        async for row in aiterate(result_set.rows):
             affected_rows += 1
             yield packets.make_text_resultset_row(row, result_set.columns)
 

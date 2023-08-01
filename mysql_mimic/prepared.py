@@ -1,7 +1,6 @@
 import re
 from dataclasses import dataclass
-from typing import Optional, Dict, Iterable
-
+from typing import Optional, Dict, AsyncIterable
 
 # Borrowed from mysql-connector-python
 REGEX_PARAM = re.compile(r"""\?(?=(?:[^"'`]*["'`][^"'`]*["'`])*[^"'`]*$)""")
@@ -13,4 +12,4 @@ class PreparedStatement:
     sql: str
     num_params: int
     param_buffers: Optional[Dict[int, bytearray]] = None
-    cursor: Optional[Iterable] = None
+    cursor: Optional[AsyncIterable[bytes]] = None

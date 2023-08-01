@@ -1,3 +1,4 @@
+import asyncio
 import io
 from contextlib import closing
 from datetime import date, datetime, timedelta
@@ -835,3 +836,26 @@ async def test_unsupported_commands(
     with pytest.raises(Exception) as ctx:
         await query_fixture(sql)
     assert msg in str(ctx.value)
+
+
+@pytest.mark.asyncio
+async def test_async_iterator(
+    session: MockSession,
+    server: MysqlServer,
+    query_fixture: QueryFixture,
+) -> None:
+    async def generate_rows() -> Any:
+        yield 1, None, None
+        await asyncio.sleep(0)
+        yield None, "2", None
+        await asyncio.sleep(0)
+        yield None, None, None
+
+    session.return_value = (generate_rows(), ["a", "b", "c"])
+
+    result = await query_fixture("SELECT * FROM x")
+    assert [
+        {"a": 1, "b": None, "c": None},
+        {"a": None, "b": "2", "c": None},
+        {"a": None, "b": None, "c": None},
+    ] == result
