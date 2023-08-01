@@ -125,7 +125,7 @@ async def _ensure_result_cols(
     # Find the first non-null value for each column
     while remaining:
         try:
-            peek = await anext(arows)
+            peek = await arows.__anext__()
         except StopAsyncIteration:
             break
 
