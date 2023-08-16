@@ -9,7 +9,7 @@ import pytest_asyncio
 from mysql.connector.abstracts import MySQLConnectionAbstract
 from mysql.connector.cursor import MySQLCursorDict, MySQLCursor
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 import aiomysql
 from freezegun import freeze_time
 
@@ -859,3 +859,17 @@ async def test_async_iterator(
         {"a": None, "b": "2", "c": None},
         {"a": None, "b": None, "c": None},
     ] == result
+
+
+@pytest.mark.asyncio
+async def test_sqlalchemy_session(
+    session: MockSession,
+    server: MysqlServer,
+    sqlalchemy_engine: AsyncEngine,
+) -> None:
+    Session = async_sessionmaker(sqlalchemy_engine)
+    async with Session() as session:
+        async with session.begin():
+            result = await session.execute(text("SELECT 1"))
+            assert result.scalars().one() == 1
+            await session.commit()

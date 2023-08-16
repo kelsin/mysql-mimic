@@ -66,6 +66,7 @@ class MockSession(Session):
     async def query(
         self, expression: exp.Expression, sql: str, attrs: Dict[str, str]
     ) -> AllowedResult:
+        assert isinstance(expression, exp.Select)
         self.last_query_attrs = attrs
         if self.echo:
             return [(sql,)], ["sql"]

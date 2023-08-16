@@ -176,6 +176,8 @@ class Session(BaseSession):
             self._use_middleware,
             self._show_middleware,
             self._describe_middleware,
+            self._begin_middleware,
+            self._commit_middleware,
             self._rollback_middleware,
             self._info_schema_middleware,
         ]
@@ -374,6 +376,18 @@ class Session(BaseSession):
     async def _rollback_middleware(self, q: Query) -> AllowedResult:
         """Intercept ROLLBACK statements"""
         if isinstance(q.expression, exp.Rollback):
+            return [], []
+        return await q.next()
+
+    async def _commit_middleware(self, q: Query) -> AllowedResult:
+        """Intercept COMMIT statements"""
+        if isinstance(q.expression, exp.Commit):
+            return [], []
+        return await q.next()
+
+    async def _begin_middleware(self, q: Query) -> AllowedResult:
+        """Intercept BEGIN statements"""
+        if isinstance(q.expression, exp.Transaction):
             return [], []
         return await q.next()
 
