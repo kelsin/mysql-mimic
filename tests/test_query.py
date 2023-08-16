@@ -863,7 +863,6 @@ async def test_async_iterator(
 
 @pytest.mark.asyncio
 async def test_sqlalchemy_session(
-    session: MockSession,
     server: MysqlServer,
     sqlalchemy_engine: AsyncEngine,
 ) -> None:
