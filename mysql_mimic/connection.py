@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from ssl import SSLContext
 from typing import Optional, Dict, Any, Iterator, AsyncIterator
@@ -11,7 +12,8 @@ from mysql_mimic.auth import (
     IdentityProvider,
 )
 from mysql_mimic.charset import CharacterSet
-from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
+from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES, KillKind
+from mysql_mimic.control import Control
 from mysql_mimic.errors import ErrorCode, MysqlError
 from mysql_mimic.packets import (
     SSLRequest,
@@ -37,15 +39,15 @@ class Connection:
     def __init__(
         self,
         stream: MysqlStream,
-        connection_id: int,
         session: BaseSession,
+        control: Control,
         identity_provider: IdentityProvider,
         server_capabilities: Capabilities = DEFAULT_SERVER_CAPABILITIES,
         ssl: Optional[SSLContext] = None,
     ):
         self.stream = stream
         self.session = session
-        self.connection_id = connection_id
+        self.control = control
         self.identity_provider = identity_provider
         self.ssl = ssl
 
@@ -69,6 +71,10 @@ class Connection:
         self.prepared_stmt_seq = seq(self._MAX_PREPARED_STMT_ID)
         self.prepared_stmts: Dict[int, PreparedStatement] = {}
 
+        self.connection_id: int = 0
+        self._kill: Optional[KillKind] = None
+        self._task: Optional[asyncio.Task] = None
+
     @property
     def server_charset(self) -> CharacterSet:
         return CharacterSet[self.session.variables.get("character_set_results")]
@@ -78,6 +84,13 @@ class Connection:
         return CharacterSet[self.session.variables.get("character_set_client")]
 
     async def start(self) -> None:
+        self._task = asyncio.create_task(self._start())
+        try:
+            await self._task
+        finally:
+            self._task = None
+
+    async def _start(self) -> None:
         context.connection_id.set(self.connection_id)
         logger.info("Started new connection: %s", self.connection_id)
         try:
@@ -89,8 +102,24 @@ class Connection:
 
         try:
             await self.command_phase()
+        except asyncio.CancelledError:
+            if self._kill == KillKind.CONNECTION:
+                logger.info("Connection %s killed", self.connection_id)
+                await self.stream.write(
+                    self.error(
+                        msg="Session was killed", code=ErrorCode.SESSION_WAS_KILLED
+                    )
+                )
+                self._kill = None
+            else:
+                raise
         finally:
             await self.session.close()
+
+    def kill(self, kind: KillKind = KillKind.CONNECTION) -> None:
+        if self._task:
+            self._kill = kind
+            self._task.cancel()
 
     async def connection_phase(self) -> None:
         default_auth_plugin = self.identity_provider.get_default_plugin()
@@ -305,6 +334,19 @@ class Connection:
             except MysqlError as e:
                 logger.error(e)
                 await self.stream.write(self.error(msg=e.msg, code=e.code))
+            except asyncio.CancelledError:
+                if self._kill == KillKind.QUERY:
+                    logger.info("Query killed on connection %s", self.connection_id)
+                    if self._task:
+                        self._task.uncancel()
+                    await self.stream.write(
+                        self.error(
+                            msg="Query was killed", code=ErrorCode.SESSION_WAS_KILLED
+                        )
+                    )
+                    self._kill = None
+                else:
+                    raise
             except Exception as e:  # pylint: disable=broad-except
                 logger.exception(e)
                 await self.stream.write(self.error(msg=e))

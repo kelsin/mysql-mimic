@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from enum import auto, Enum
+
 from mysql_mimic.types import Capabilities
 
 DEFAULT_SERVER_CAPABILITIES = (
@@ -16,6 +18,13 @@ DEFAULT_SERVER_CAPABILITIES = (
     | Capabilities.CLIENT_INTERACTIVE
     | Capabilities.CLIENT_IGNORE_SPACE
 )
+
+
+class KillKind(Enum):
+    # Terminate the connection, after terminating any statement the connection is executing
+    QUERY = auto()
+    # Terminate the statement the connection is currently executing, but leave the connection itself intact
+    CONNECTION = auto()
 
 
 INFO_SCHEMA = {

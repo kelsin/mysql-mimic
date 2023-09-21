@@ -824,6 +824,7 @@ async def test_commands(
             "Cannot SET variable sql_mode with scope GLOBAL",
         ),
         ("SET @foo = 'bar'", "User-defined variables not supported yet"),
+        ("KILL 'abc'", "Invalid KILL connection ID"),
     ],
 )
 async def test_unsupported_commands(

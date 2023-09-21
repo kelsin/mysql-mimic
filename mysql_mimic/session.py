@@ -32,7 +32,7 @@ from mysql_mimic.schema import (
     BaseInfoSchema,
     ensure_info_schema,
 )
-from mysql_mimic.constants import INFO_SCHEMA
+from mysql_mimic.constants import INFO_SCHEMA, KillKind
 from mysql_mimic.utils import find_dbs
 from mysql_mimic.variables import (
     Variables,
@@ -174,6 +174,7 @@ class Session(BaseSession):
             self._set_middleware,
             self._static_query_middleware,
             self._use_middleware,
+            self._kill_middleware,
             self._show_middleware,
             self._describe_middleware,
             self._begin_middleware,
@@ -343,6 +344,26 @@ class Session(BaseSession):
         """Intercept USE statements"""
         if isinstance(q.expression, exp.Use):
             await self.use(q.expression.this.name)
+            return [], []
+        return await q.next()
+
+    async def _kill_middleware(self, q: Query) -> AllowedResult:
+        """Intercept KILL statements"""
+        if isinstance(q.expression, exp.Kill):
+            control = self.connection.control
+            if control:
+                kind = KillKind[q.expression.text("kind").upper() or "CONNECTION"]
+                this = q.expression.this.name
+
+                try:
+                    connection_id = int(this)
+                except ValueError as e:
+                    raise MysqlError(
+                        f"Invalid KILL connection ID: {this}",
+                        code=ErrorCode.PARSE_ERROR,
+                    ) from e
+
+                await control.kill(connection_id, kind)
             return [], []
         return await q.next()
 
