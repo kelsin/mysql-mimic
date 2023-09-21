@@ -337,7 +337,7 @@ class Connection:
             except asyncio.CancelledError:
                 if self._kill == KillKind.QUERY:
                     logger.info("Query killed on connection %s", self.connection_id)
-                    if self._task:
+                    if self._task and hasattr(self._task, "uncancel"):  # python >=3.11
                         self._task.uncancel()
                     await self.stream.write(
                         self.error(
