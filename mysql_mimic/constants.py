@@ -21,9 +21,9 @@ DEFAULT_SERVER_CAPABILITIES = (
 
 
 class KillKind(Enum):
-    # Terminate the connection, after terminating any statement the connection is executing
-    QUERY = auto()
     # Terminate the statement the connection is currently executing, but leave the connection itself intact
+    QUERY = auto()
+    # Terminate the connection, after terminating any statement the connection is executing
     CONNECTION = auto()
 
 
