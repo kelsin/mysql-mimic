@@ -59,6 +59,11 @@ class MockSession(Session):
         self.last_query_attrs: Optional[Dict[str, str]] = None
         self.users: Optional[Dict[str, User]] = None
 
+        # tests can set an Event that the session will use to wait before continuing
+        self.pause: Optional[asyncio.Event] = None
+        # the session will set this event while waiting on `pause`
+        self.waiting = asyncio.Event()
+
     async def init(self, connection: Connection) -> None:
         await super().init(connection)
         self.ctx = copy_context()
@@ -66,6 +71,10 @@ class MockSession(Session):
     async def query(
         self, expression: exp.Expression, sql: str, attrs: Dict[str, str]
     ) -> AllowedResult:
+        if self.pause:
+            self.waiting.set()
+            await self.pause.wait()
+            self.waiting.clear()
         assert isinstance(expression, exp.Select)
         self.last_query_attrs = attrs
         if self.echo:
@@ -114,6 +123,11 @@ def session() -> MockSession:
 
 
 @pytest.fixture
+def session_factory(session: MockSession) -> Callable[[], MockSession]:
+    return lambda: session
+
+
+@pytest.fixture
 def auth_plugins() -> Optional[List[AuthPlugin]]:
     return None
 
@@ -139,12 +153,12 @@ def ssl() -> Optional[SSLContext]:
 
 @pytest_asyncio.fixture
 async def server(
-    session: MockSession,
+    session_factory: Callable[[], MockSession],
     identity_provider: Optional[MockIdentityProvider],
     ssl: Optional[SSLContext],
 ) -> AsyncGenerator[MysqlServer, None]:
     srv = MysqlServer(
-        session_factory=lambda: session,
+        session_factory=session_factory,
         identity_provider=identity_provider,
         ssl=ssl,
     )

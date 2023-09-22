@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 import asyncio
-import random
 from ssl import SSLContext
 from socket import socket
-from typing import Callable, Any, Dict, Optional, Sequence
+from typing import Callable, Any, Optional, Sequence
 
 from mysql_mimic.auth import IdentityProvider, SimpleIdentityProvider
 from mysql_mimic.connection import Connection
+from mysql_mimic.control import Control, LocalControl, TooManyConnections
+from mysql_mimic.errors import ErrorCode
 from mysql_mimic.session import Session, BaseSession
 from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 from mysql_mimic.stream import MysqlStream
 from mysql_mimic.types import Capabilities
-from mysql_mimic.utils import seq
 
 
 class MaxConnectionsExceeded(Exception):
@@ -26,9 +26,7 @@ class MysqlServer:
     Args:
         session_factory: Callable that takes no arguments and returns a session
         capabilities: server capability flags
-        server_id: set a unique server ID. This is used to generate globally unique
-            connection IDs. This should be an integer between 0 and 65535.
-            If left as None, a random server ID will be generated.
+        control: Control instance to use. Defaults to a LocalControl instance.
         identity_provider: Authentication plugins to register. Defaults to `SimpleIdentityProvider`,
             which just blindly accepts whatever `username` is given by the client.
         ssl: SSLContext instance if this server should enable TLS over connections
@@ -36,82 +34,54 @@ class MysqlServer:
         **kwargs: extra keyword args passed to the asyncio start server command
     """
 
-    _CONNECTION_ID_BITS = 16
-    _MAX_CONNECTION_SEQ = 2**_CONNECTION_ID_BITS
-    _MAX_SERVER_ID = 2**16
-
     def __init__(
         self,
         session_factory: Callable[[], BaseSession] = Session,
         capabilities: Capabilities = DEFAULT_SERVER_CAPABILITIES,
-        server_id: int | None = None,
+        control: Control | None = None,
         identity_provider: IdentityProvider | None = None,
         ssl: SSLContext | None = None,
         **serve_kwargs: Any,
     ):
         self.session_factory = session_factory
         self.capabilities = capabilities
-        self.server_id = server_id or self._get_server_id()
         self.identity_provider = identity_provider or SimpleIdentityProvider()
         self.ssl = ssl
 
-        self._connection_seq = seq(self._MAX_CONNECTION_SEQ)
-        self._connections: Dict[int, Connection] = {}
+        self.control = control or LocalControl()
         self._serve_kwargs = serve_kwargs
         self._server: Optional[asyncio.base_events.Server] = None
 
     async def _client_connected_cb(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
-        connection_id = self._get_connection_id()
+        stream = MysqlStream(reader, writer)
+
         connection = Connection(
-            stream=MysqlStream(reader, writer),
+            stream=stream,
             session=self.session_factory(),
+            control=self.control,
             server_capabilities=self.capabilities,
-            connection_id=connection_id,
             identity_provider=self.identity_provider,
             ssl=self.ssl,
         )
-        self._connections[connection_id] = connection
+
+        try:
+            connection_id = await self.control.add(connection)
+        except TooManyConnections:
+            await stream.write(
+                connection.error(
+                    msg="Too many connections",
+                    code=ErrorCode.CON_COUNT_ERROR,
+                )
+            )
+            return
+        connection.connection_id = connection_id
         try:
             return await connection.start()
         finally:
-            self._connections.pop(connection_id, None)
-
-    def _get_server_id(self) -> int:
-        return random.randint(0, self._MAX_SERVER_ID - 1)
-
-    def _get_connection_id(self) -> int:
-        """
-        Generate a connection ID.
-
-        MySQL connection IDs are 4 bytes.
-
-        This is tricky for us, as there may be multiple MySQL-Mimic server instances.
-
-        We use a concatenation of the server ID (first two bytes) and connection
-        sequence (second two bytes):
-
-        |<---server ID--->|<-conn sequence->|
-         00000000 00000000 00000000 00000000
-
-        If incremental connection IDs aren't manually provided, this isn't guaranteed
-        to be unique. But collisions should be highly unlikely.
-        """
-        if len(self._connections) >= self._MAX_CONNECTION_SEQ:
-            raise MaxConnectionsExceeded()
-        server_id_prefix = (
-            self.server_id % self._MAX_SERVER_ID
-        ) << self._CONNECTION_ID_BITS
-
-        connection_id = server_id_prefix + next(self._connection_seq)
-
-        # Avoid connection ID collisions in the unlikely chance that a connection is
-        # alive longer than it takes for the sequence to reset.
-        while connection_id in self._connections:
-            connection_id = server_id_prefix + next(self._connection_seq)
-
-        return connection_id
+            writer.close()
+            await self.control.remove(connection_id)
 
     async def start_server(self, **kwargs: Any) -> None:
         """
