@@ -25,6 +25,7 @@ from mysql.connector.connection import (
 )
 from mysql.connector.cursor import MySQLCursor
 from sqlglot import expressions as exp
+from sqlglot.executor import execute
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 import pytest
 import pytest_asyncio
@@ -55,6 +56,7 @@ class MockSession(Session):
         super().__init__()
         self.ctx: Context | None = None
         self.return_value: Any = None
+        self.execute = False
         self.echo = False
         self.last_query_attrs: Optional[Dict[str, str]] = None
         self.users: Optional[Dict[str, User]] = None
@@ -79,6 +81,9 @@ class MockSession(Session):
         self.last_query_attrs = attrs
         if self.echo:
             return [(sql,)], ["sql"]
+        if self.execute:
+            result = execute(expression)
+            return result.rows, result.columns
         return self.return_value
 
     async def schema(self) -> dict | InfoSchema:

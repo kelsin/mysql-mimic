@@ -368,6 +368,19 @@ async def test_query_attributes(
             "SELECT /*+ SET_VAR(max_execution_time=1, sql_mode = 'foo') EXECUTE_AS('barak_alon') */ @@max_execution_time, @@sql_mode",
             [{"@@max_execution_time": 1, "@@sql_mode": "foo"}],
         ),
+        (
+            """
+            SELECT 
+              /*+ SET_VAR(max_execution_time=2) */ 
+              x 
+            FROM (
+              SELECT 
+                /*+ SET_VAR(max_execution_time=1) */ 
+                @@max_execution_time AS x
+            ) AS a
+            """,
+            [{"x": 2}],
+        ),
         # SET names
         (
             """
@@ -810,6 +823,7 @@ async def test_commands(
     sql: str,
     expected: List[Dict[str, Any]],
 ) -> None:
+    session.execute = True
     with freeze_time("2023-01-01"):
         result = await query_fixture(sql)
         assert expected == list(result)

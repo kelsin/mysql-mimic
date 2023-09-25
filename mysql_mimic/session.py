@@ -312,24 +312,28 @@ class Session(BaseSession):
 
     async def _set_var_middleware(self, q: Query) -> AllowedResult:
         """Handles any SET_VAR hints, which set system variables for a single statement"""
-        hint = q.expression.args.get("hint")
-        if not hint:
+        hints = q.expression.find_all(exp.Hint)
+        if not hints:
             return await q.next()
 
-        set_var_hint = None
         assignments = {}
-        for e in hint.expressions:
-            if isinstance(e, exp.Func) and e.name == "SET_VAR":
-                set_var_hint = e
-                for eq in e.expressions:
-                    assignments[eq.left.name] = expression_to_value(eq.right)
 
-        if set_var_hint:
-            set_var_hint.pop()
+        # Iterate in reverse order so higher SET_VAR hints get priority
+        for hint in reversed(list(hints)):
+            set_var_hint = None
 
-        # Remove the hint entirely if SET_VAR was the only expression
-        if not hint.expressions:
-            hint.pop()
+            for e in hint.expressions:
+                if isinstance(e, exp.Func) and e.name == "SET_VAR":
+                    set_var_hint = e
+                    for eq in e.expressions:
+                        assignments[eq.left.name] = expression_to_value(eq.right)
+
+            if set_var_hint:
+                set_var_hint.pop()
+
+            # Remove the hint entirely if SET_VAR was the only expression
+            if not hint.expressions:
+                hint.pop()
 
         orig = {k: self.variables.get(k) for k in assignments}
         try:
