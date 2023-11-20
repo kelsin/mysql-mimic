@@ -28,7 +28,7 @@ from mysql_mimic.schema import com_field_list_to_show_statement
 from mysql_mimic.session import BaseSession
 from mysql_mimic.stream import MysqlStream, ConnectionClosed
 from mysql_mimic.types import Capabilities
-from mysql_mimic.utils import seq, aiterate
+from mysql_mimic.utils import seq, aiterate, cooperative_iterate
 
 logger = logging.getLogger(__name__)
 
@@ -502,7 +502,7 @@ class Connection:
             )
 
         async def gen_rows() -> AsyncIterator[bytes]:
-            async for r in aiterate(result_set.rows):
+            async for r in cooperative_iterate(aiterate(result_set.rows)):
                 yield packets.make_binary_resultrow(r, result_set.columns)
 
         rows = gen_rows()
@@ -531,7 +531,7 @@ class Connection:
         assert stmt.cursor is not None
         count = 0
 
-        async for packet in stmt.cursor:
+        async for packet in cooperative_iterate(stmt.cursor):
             if count >= com_stmt_fetch.num_rows:
                 break
             await self.stream.write(packet)
@@ -640,7 +640,7 @@ class Connection:
 
         affected_rows = 0
 
-        async for row in aiterate(result_set.rows):
+        async for row in cooperative_iterate(aiterate(result_set.rows)):
             affected_rows += 1
             yield packets.make_text_resultset_row(row, result_set.columns)
 
