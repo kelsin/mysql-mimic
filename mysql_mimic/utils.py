@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 import sys
 from collections.abc import Iterator
@@ -106,3 +107,17 @@ async def aiterate(iterable: AsyncIterable[T] | Iterable[T]) -> AsyncIterator[T]
     else:
         for item in cast(Iterable, iterable):
             yield item
+
+
+async def cooperative_iterate(
+    iterable: AsyncIterable[T], batch_size: int = 10_000
+) -> AsyncIterator[T]:
+    """
+    Iterate an async iterable in a cooperative manner, yielding control back to the event loop every `batch_size` iterations
+    """
+    i = 0
+    async for item in iterable:
+        if i != 0 and i % batch_size == 0:
+            await asyncio.sleep(0)
+        yield item
+        i += 1
