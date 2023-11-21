@@ -428,7 +428,8 @@ class Connection:
             return
 
         async for packet in self.text_resultset(result_set):
-            await self.stream.write(packet)
+            await self.stream.write(packet, drain=False)
+        await self.stream.drain()
 
     async def handle_stmt_prepare(self, data: bytes) -> None:
         """
@@ -449,7 +450,8 @@ class Connection:
         self.prepared_stmts[stmt_id] = stmt
 
         for packet in self.com_stmt_prepare_response(stmt):
-            await self.stream.write(packet)
+            await self.stream.write(packet, drain=False)
+        await self.stream.drain()
 
     async def handle_stmt_send_long_data(self, data: bytes) -> None:
         """
@@ -534,8 +536,9 @@ class Connection:
         async for packet in cooperative_iterate(stmt.cursor):
             if count >= com_stmt_fetch.num_rows:
                 break
-            await self.stream.write(packet)
+            await self.stream.write(packet, drain=False)
             count += 1
+        await self.stream.drain()
 
         done = count < com_stmt_fetch.num_rows
 
