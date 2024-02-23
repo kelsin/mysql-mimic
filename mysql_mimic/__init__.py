@@ -1,4 +1,5 @@
 """Implementation of the mysql server wire protocol"""
+
 from mysql_mimic.auth import (
     User,
     IdentityProvider,
