@@ -10,6 +10,7 @@ from mysql_mimic.charset import CharacterSet, Collation
 from mysql_mimic.errors import MysqlError, ErrorCode
 
 
+# pylint: disable=multiple-statements
 class Default: ...
 
 
