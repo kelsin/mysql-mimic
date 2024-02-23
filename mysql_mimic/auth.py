@@ -219,6 +219,20 @@ class KerberosAuthPlugin(AuthPlugin):
         yield Success(username)
 
 
+class GSSAPIAuthPlugin(KerberosAuthPlugin):
+    """
+    This plugin implements the Generic Security Service Application Program
+    Interface (GSS-API) by way of the Kerberos mechanism as described in
+    RFC1964(https://www.rfc-editor.org/rfc/rfc1964.html).
+
+    It uses the name of the GSSAPI plugin that the MariaDB client uses, but is
+    otherwise identical to KerberosAuthPlugin.
+    """
+
+    name = "auth_gssapi"
+    client_plugin_name = "auth_gssapi_client"
+
+
 class NoLoginAuthPlugin(AuthPlugin):
     """
     Standard plugin that prevents all clients from direct login.

@@ -30,7 +30,7 @@ setup(
             "pytest",
             "pytest-asyncio",
             "sphinx",
-            "sqlalchemy",
+            "sqlalchemy[asyncio]",
             "twine",
             "wheel",
         ],

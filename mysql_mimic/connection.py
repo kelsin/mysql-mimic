@@ -544,9 +544,11 @@ class Connection:
 
         await self.stream.write(
             self.ok_or_eof(
-                flags=types.ServerStatus.SERVER_STATUS_LAST_ROW_SENT
-                if done
-                else types.ServerStatus.SERVER_STATUS_CURSOR_EXISTS
+                flags=(
+                    types.ServerStatus.SERVER_STATUS_LAST_ROW_SENT
+                    if done
+                    else types.ServerStatus.SERVER_STATUS_CURSOR_EXISTS
+                )
             )
         )
 

@@ -72,9 +72,11 @@ class CustomIdentityProvider(IdentityProvider):
                 password = user.get("password")
                 return User(
                     name=username,
-                    auth_string=NativePasswordAuthPlugin.create_auth_string(password)
-                    if password
-                    else None,
+                    auth_string=(
+                        NativePasswordAuthPlugin.create_auth_string(password)
+                        if password
+                        else None
+                    ),
                     auth_plugin=NativePasswordAuthPlugin.name,
                 )
             elif auth_plugin == "authentication_kerberos":
