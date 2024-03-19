@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from ssl import SSLContext
 from socket import socket
-from typing import Callable, Any, Optional, Sequence
+from typing import Callable, Any, Optional, Sequence, Awaitable
 
 from mysql_mimic.auth import IdentityProvider, SimpleIdentityProvider
 from mysql_mimic.connection import Connection
@@ -36,7 +37,7 @@ class MysqlServer:
 
     def __init__(
         self,
-        session_factory: Callable[[], BaseSession] = Session,
+        session_factory: Callable[[], BaseSession | Awaitable[BaseSession]] = Session,
         capabilities: Capabilities = DEFAULT_SERVER_CAPABILITIES,
         control: Control | None = None,
         identity_provider: IdentityProvider | None = None,
@@ -57,9 +58,14 @@ class MysqlServer:
     ) -> None:
         stream = MysqlStream(reader, writer)
 
+        if inspect.iscoroutinefunction(self.session_factory):
+            session = await self.session_factory()
+        else:
+            session = self.session_factory()
+
         connection = Connection(
             stream=stream,
-            session=self.session_factory(),
+            session=session,
             control=self.control,
             server_capabilities=self.capabilities,
             identity_provider=self.identity_provider,

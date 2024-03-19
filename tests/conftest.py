@@ -122,8 +122,8 @@ async def to_thread(func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
     return await loop.run_in_executor(None, func_call)
 
 
-@pytest.fixture
-def session() -> MockSession:
+@pytest_asyncio.fixture
+async def session() -> MockSession:
     return MockSession()
 
 

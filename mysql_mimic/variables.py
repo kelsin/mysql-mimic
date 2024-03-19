@@ -10,8 +10,7 @@ from mysql_mimic.charset import CharacterSet, Collation
 from mysql_mimic.errors import MysqlError, ErrorCode
 
 
-class Default:
-    ...
+class Default: ...
 
 
 VariableType = Callable[[Any], Any]
@@ -102,8 +101,7 @@ class Variables(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def schema(self) -> dict[str, VariableSchema]:
-        ...
+    def schema(self) -> dict[str, VariableSchema]: ...
 
 
 class GlobalVariables(Variables):

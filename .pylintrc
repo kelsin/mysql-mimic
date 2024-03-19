@@ -15,6 +15,7 @@ disable=
     unused-argument,
     redefined-outer-name,
     too-many-statements,
+    multiple-statements,
 
 [FORMAT]
 
