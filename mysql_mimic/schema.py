@@ -275,8 +275,7 @@ class BaseInfoSchema:
     Base InfoSchema interface used by the `Session` class.
     """
 
-    async def query(self, expression: exp.Expression) -> AllowedResult:
-        ...
+    async def query(self, expression: exp.Expression) -> AllowedResult: ...
 
 
 class InfoSchema(BaseInfoSchema):
