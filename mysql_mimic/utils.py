@@ -55,7 +55,9 @@ def nonce(nbytes: int) -> bytes:
 
 def find_tables(expression: exp.Expression) -> List[exp.Table]:
     """Find all tables in an expression"""
-    if isinstance(expression, (exp.Subqueryable, exp.Subquery)):
+    if isinstance(
+        expression, (exp.Select, exp.Subquery, exp.Union, exp.Except, exp.Intersect)
+    ):
         return [
             source
             for scope in traverse_scope(expression)
