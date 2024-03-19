@@ -30,12 +30,15 @@ jobs:
       run: |
         make test
     - name: Lint
+      if: matrix.python-version != '3.7'
       run: |
         make lint
     - name: Format
+      if: matrix.python-version != '3.7'
       run: |
         make format-check
     - name: Type annotations
+      if: matrix.python-version != '3.7'
       run: |
         make types
   mysql-connector-j:
