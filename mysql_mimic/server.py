@@ -9,7 +9,6 @@ from typing import Callable, Any, Optional, Sequence, Awaitable
 
 from mysql_mimic import packets
 from mysql_mimic.auth import IdentityProvider, SimpleIdentityProvider
-from mysql_mimic.charset import CharacterSet
 from mysql_mimic.connection import Connection
 from mysql_mimic.control import Control, LocalControl, TooManyConnections
 from mysql_mimic.errors import ErrorCode
@@ -79,7 +78,7 @@ class MysqlServer:
                 ssl=self.ssl,
             )
 
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             logger.exception("Failed to create connection")
             await stream.write(
                 # Return an error so clients don't freeze
@@ -98,11 +97,9 @@ class MysqlServer:
                 )
             )
             return
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             logger.exception("Failed to register connection")
-            await stream.write(
-                connection.error(msg="Failed to register connection")
-            )
+            await stream.write(connection.error(msg="Failed to register connection"))
             return
 
         try:
