@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, Sequence, Callable, Tuple, List, Union
 
 from mysql_mimic.charset import Collation, CharacterSet
+from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 from mysql_mimic.errors import ErrorCode, get_sqlstate, MysqlError
 from mysql_mimic.prepared import PreparedStatement, REGEX_PARAM
 from mysql_mimic.results import NullBitmap, ResultColumn
@@ -153,9 +154,9 @@ def make_eof(
 
 
 def make_error(
-    capabilities: Capabilities,
-    server_charset: CharacterSet,
-    msg: Any,
+    capabilities: Capabilities = DEFAULT_SERVER_CAPABILITIES,
+    server_charset: CharacterSet = CharacterSet.utf8mb4,
+    msg: Any = "",
     code: ErrorCode = ErrorCode.UNKNOWN_ERROR,
 ) -> bytes:
     parts = [uint_1(0xFF), uint_2(code)]
