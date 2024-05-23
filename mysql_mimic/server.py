@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
 from ssl import SSLContext
 from socket import socket
 from typing import Callable, Any, Optional, Sequence, Awaitable
 
+from mysql_mimic import packets
 from mysql_mimic.auth import IdentityProvider, SimpleIdentityProvider
 from mysql_mimic.connection import Connection
 from mysql_mimic.control import Control, LocalControl, TooManyConnections
@@ -14,6 +16,9 @@ from mysql_mimic.session import Session, BaseSession
 from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 from mysql_mimic.stream import MysqlStream
 from mysql_mimic.types import Capabilities
+
+
+logger = logging.getLogger(__name__)
 
 
 class MaxConnectionsExceeded(Exception):
@@ -58,22 +63,32 @@ class MysqlServer:
     ) -> None:
         stream = MysqlStream(reader, writer)
 
-        if inspect.iscoroutinefunction(self.session_factory):
-            session = await self.session_factory()
-        else:
-            session = self.session_factory()
+        try:
+            if inspect.iscoroutinefunction(self.session_factory):
+                session = await self.session_factory()
+            else:
+                session = self.session_factory()
 
-        connection = Connection(
-            stream=stream,
-            session=session,
-            control=self.control,
-            server_capabilities=self.capabilities,
-            identity_provider=self.identity_provider,
-            ssl=self.ssl,
-        )
+            connection = Connection(
+                stream=stream,
+                session=session,
+                control=self.control,
+                server_capabilities=self.capabilities,
+                identity_provider=self.identity_provider,
+                ssl=self.ssl,
+            )
+
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("Failed to create connection")
+            await stream.write(
+                # Return an error so clients don't freeze
+                packets.make_error(capabilities=self.capabilities)
+            )
+            return
 
         try:
             connection_id = await self.control.add(connection)
+            connection.connection_id = connection_id
         except TooManyConnections:
             await stream.write(
                 connection.error(
@@ -82,7 +97,11 @@ class MysqlServer:
                 )
             )
             return
-        connection.connection_id = connection_id
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("Failed to register connection")
+            await stream.write(connection.error(msg="Failed to register connection"))
+            return
+
         try:
             return await connection.start()
         finally:
