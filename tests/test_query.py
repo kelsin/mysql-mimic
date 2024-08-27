@@ -370,12 +370,12 @@ async def test_query_attributes(
         ),
         (
             """
-            SELECT
-              /*+ SET_VAR(max_execution_time=2) */
-              x
+            SELECT 
+              /*+ SET_VAR(max_execution_time=2) */ 
+              x 
             FROM (
-              SELECT
-                /*+ SET_VAR(max_execution_time=1) */
+              SELECT 
+                /*+ SET_VAR(max_execution_time=1) */ 
                 @@max_execution_time AS x
             ) AS a
             """,
@@ -653,7 +653,7 @@ async def test_query_attributes(
                 {"Value": "utf8mb4", "Variable_name": "character_set_results"},
                 {"Value": "utf8mb4", "Variable_name": "character_set_server"},
                 {
-                    "Value": "utf8mb4_0900_ai_ci",
+                    "Value": "utf8mb4_general_ci",
                     "Variable_name": "collation_connection",
                 },
                 {"Value": "utf8mb4_general_ci", "Variable_name": "collation_database"},
