@@ -840,6 +840,7 @@ async def test_commands(
         ("SET @foo = 'bar'", "User-defined variables not supported yet"),
         ("KILL 'abc'", "Invalid KILL connection ID"),
         (
+            # pick a dynamic string session var
             "SET init_connect='abc' in xyz", "Unexpected expression: 'abc' IN xyz"
         ),
     ],
