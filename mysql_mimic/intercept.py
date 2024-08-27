@@ -60,4 +60,4 @@ def expression_to_value(expression: exp.Expression) -> Any:
         return True
     if expression.name == "OFF":
         return False
-    return expression.name
+    raise ValueError(f"Unexpected expression: {expression}")
