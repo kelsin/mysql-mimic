@@ -370,12 +370,12 @@ async def test_query_attributes(
         ),
         (
             """
-            SELECT 
-              /*+ SET_VAR(max_execution_time=2) */ 
-              x 
+            SELECT
+              /*+ SET_VAR(max_execution_time=2) */
+              x
             FROM (
-              SELECT 
-                /*+ SET_VAR(max_execution_time=1) */ 
+              SELECT
+                /*+ SET_VAR(max_execution_time=1) */
                 @@max_execution_time AS x
             ) AS a
             """,
@@ -839,6 +839,11 @@ async def test_commands(
         ),
         ("SET @foo = 'bar'", "User-defined variables not supported yet"),
         ("KILL 'abc'", "Invalid KILL connection ID"),
+        (
+            # pick a dynamic string session var
+            "SET init_connect='abc' in xyz",
+            "Complex expressions in variables not supported yet",
+        ),
     ],
 )
 async def test_unsupported_commands(

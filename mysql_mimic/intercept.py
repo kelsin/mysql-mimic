@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 from sqlglot import expressions as exp
+
+from mysql_mimic.errors import MysqlError, ErrorCode
 from mysql_mimic.variables import DEFAULT
 
 
@@ -60,4 +62,7 @@ def expression_to_value(expression: exp.Expression) -> Any:
         return True
     if expression.name == "OFF":
         return False
-    return expression.name
+    raise MysqlError(
+        "Complex expressions in variables not supported yet",
+        code=ErrorCode.NOT_SUPPORTED_YET,
+    )
