@@ -208,6 +208,8 @@ async def mysql_connector_conn(
     connect: ConnectFixture,
 ) -> AsyncGenerator[MySQLConnectionAbstract, None]:
     conn = await connect(user="levon_helm")
+    # Different versions of mysql-connector use various default collations.
+    # Execute the following query to ensure consistent test results across different versions.
     await query(conn, "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_general_ci'")
     try:
         yield conn
