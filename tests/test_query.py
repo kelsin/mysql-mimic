@@ -65,7 +65,9 @@ async def query_fixture(
             async with sqlalchemy_engine.connect() as conn:
                 # Sqlglot by-default runs `SET NAMES 'utf8mb4'` if no charset specified, which removes COLLATE settings
                 # See https://github.com/sqlalchemy/sqlalchemy/discussions/7858
-                await conn.execute(text("SET NAMES 'utf8mb4' COLLATE 'utf8mb4_0900_ai_ci'"))
+                await conn.execute(
+                    text("SET NAMES 'utf8mb4' COLLATE 'utf8mb4_0900_ai_ci'")
+                )
                 cursor = await conn.execute(text(sql))
                 if cursor.returns_rows:
                     return cursor.mappings().all()  # type: ignore
@@ -844,7 +846,8 @@ async def test_commands(
         ("KILL 'abc'", "Invalid KILL connection ID"),
         (
             # pick a dynamic string session var
-            "SET init_connect='abc' in xyz", "Unexpected expression: 'abc' IN xyz"
+            "SET init_connect='abc' in xyz",
+            "Unexpected expression: 'abc' IN xyz",
         ),
     ],
 )
