@@ -63,11 +63,6 @@ async def query_fixture(
 
         async def q4(sql: str) -> Sequence[Dict[str, Any]]:
             async with sqlalchemy_engine.connect() as conn:
-                # Sqlglot by-default runs `SET NAMES 'utf8mb4'` if no charset specified, which removes COLLATE settings
-                # See https://github.com/sqlalchemy/sqlalchemy/discussions/7858
-                await conn.execute(
-                    text("SET NAMES 'utf8mb4' COLLATE 'utf8mb4_0900_ai_ci'")
-                )
                 cursor = await conn.execute(text(sql))
                 if cursor.returns_rows:
                     return cursor.mappings().all()  # type: ignore
@@ -409,7 +404,7 @@ async def test_query_attributes(
                     "@@character_set_client": "utf8mb4",
                     "@@SESSION.character_set_connection": "utf8mb4",
                     "@@character_set_results": "utf8mb4",
-                    "@@collation_connection": "utf8mb4_0900_ai_ci",
+                    "@@collation_connection": "utf8mb4_general_ci",
                 }
             ],
         ),
@@ -658,7 +653,7 @@ async def test_query_attributes(
                 {"Value": "utf8mb4", "Variable_name": "character_set_results"},
                 {"Value": "utf8mb4", "Variable_name": "character_set_server"},
                 {
-                    "Value": "utf8mb4_0900_ai_ci",
+                    "Value": "utf8mb4_general_ci",
                     "Variable_name": "collation_connection",
                 },
                 {"Value": "utf8mb4_general_ci", "Variable_name": "collation_database"},
@@ -756,7 +751,7 @@ async def test_query_attributes(
                     "character_set_connection": "utf8mb4",
                     "character_set_results": "utf8mb4",
                     "character_set_server": "utf8mb4",
-                    "collation_connection": "utf8mb4_0900_ai_ci",
+                    "collation_connection": "utf8mb4_general_ci",
                     "collation_server": "utf8mb4_general_ci",
                     "init_connect": "",
                     "interactive_timeout": 28800,

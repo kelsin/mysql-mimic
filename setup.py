@@ -20,7 +20,7 @@ setup(
         "dev": [
             "aiomysql",
             "mypy",
-            "mysql-connector-python",
+            "mysql-connector-python<9.0.0",
             "black",
             "coverage",
             "freezegun",

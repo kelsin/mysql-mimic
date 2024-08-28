@@ -28,7 +28,7 @@ SYSTEM_VARIABLES: dict[str, VariableSchema] = {
     "character_set_database": (str, CharacterSet.utf8mb4.name, True),
     "character_set_results": (str, CharacterSet.utf8mb4.name, True),
     "character_set_server": (str, CharacterSet.utf8mb4.name, True),
-    "collation_connection": (str, Collation.utf8mb4_0900_ai_ci.name, True),
+    "collation_connection": (str, Collation.utf8mb4_general_ci.name, True),
     "collation_database": (str, Collation.utf8mb4_general_ci.name, True),
     "collation_server": (str, Collation.utf8mb4_general_ci.name, True),
     "external_user": (str, "", False),
