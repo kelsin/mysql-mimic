@@ -208,6 +208,7 @@ async def mysql_connector_conn(
     connect: ConnectFixture,
 ) -> AsyncGenerator[MySQLConnectionAbstract, None]:
     conn = await connect(user="levon_helm")
+    await query(conn, "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_general_ci'")
     try:
         yield conn
     finally:

@@ -842,7 +842,7 @@ async def test_commands(
         (
             # pick a dynamic string session var
             "SET init_connect='abc' in xyz",
-            "Unexpected expression: 'abc' IN xyz",
+            "Complex expressions in variables not supported yet",
         ),
     ],
 )
