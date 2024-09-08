@@ -731,6 +731,15 @@ async def test_query_attributes(
             ],
         ),
         (
+            "describe SELECT b FROM a",
+            [
+                {
+                    "sql": "SELECT b FROM a",
+                },
+
+            ],
+        ),
+        (
             "show tables from information_schema like 'k%'",
             [
                 {"Table_name": "key_column_usage"},
