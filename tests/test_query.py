@@ -736,7 +736,6 @@ async def test_query_attributes(
                 {
                     "sql": "SELECT b FROM a",
                 },
-
             ],
         ),
         (
