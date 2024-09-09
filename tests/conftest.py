@@ -77,7 +77,7 @@ class MockSession(Session):
             self.waiting.set()
             await self.pause.wait()
             self.waiting.clear()
-        assert isinstance(expression, exp.Select)
+
         self.last_query_attrs = attrs
         if self.echo:
             return [(sql,)], ["sql"]

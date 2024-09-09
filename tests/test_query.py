@@ -73,10 +73,10 @@ async def query_fixture(
     raise RuntimeError("Unexpected fixture param")
 
 
-# # Uncomment to make tests only use mysql-connector, which can help during debugging
+# Uncomment to make tests only use mysql-connector, which can help during debugging
 # @pytest_asyncio.fixture
 # async def query_fixture(
-#     mysql_connector_conn: MySQLConnection,
+#     mysql_connector_conn: MySQLConnectionAbstract,
 # ) -> QueryFixture:
 #     async def q1(sql: str) -> Sequence[Dict[str, Any]]:
 #         return await query(mysql_connector_conn, sql)
@@ -291,6 +291,19 @@ async def test_query_attributes(
         cursor_class=cursor_class,
     )
     assert session.last_query_attrs == query_attrs
+
+
+@pytest.mark.asyncio
+async def test_describe_select(
+    session: MockSession,
+    server: MysqlServer,
+    query_fixture: QueryFixture,
+) -> None:
+    session.echo = True
+    sql = "DESCRIBE SELECT b from a"
+    with freeze_time("2023-01-01"):
+        result = await query_fixture(sql)
+        assert [{"sql": "DESCRIBE SELECT b from a"}] == list(result)
 
 
 # pylint: disable=trailing-whitespace

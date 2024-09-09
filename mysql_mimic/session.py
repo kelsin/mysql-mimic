@@ -393,6 +393,9 @@ class Session(BaseSession):
     async def _describe_middleware(self, q: Query) -> AllowedResult:
         """Intercept DESCRIBE statements"""
         if isinstance(q.expression, exp.Describe):
+            if isinstance(q.expression.this, exp.Select):
+                # Mysql parse treats EXPLAIN SELECT as a DESCRIBE SELECT statement
+                return await q.next()
             name = q.expression.this.name
             show = self.dialect().parse(f"SHOW COLUMNS FROM {name}")[0]
             return await self._show(show) if isinstance(show, exp.Show) else None
