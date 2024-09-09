@@ -292,6 +292,7 @@ async def test_query_attributes(
     )
     assert session.last_query_attrs == query_attrs
 
+
 @pytest.mark.asyncio
 async def test_describe_select(
     session: MockSession,
@@ -302,8 +303,7 @@ async def test_describe_select(
     sql = "DESCRIBE SELECT b from a"
     with freeze_time("2023-01-01"):
         result = await query_fixture(sql)
-        assert [{'sql': 'DESCRIBE SELECT b from a'}] == list(result)
-
+        assert [{"sql": "DESCRIBE SELECT b from a"}] == list(result)
 
 
 # pylint: disable=trailing-whitespace
